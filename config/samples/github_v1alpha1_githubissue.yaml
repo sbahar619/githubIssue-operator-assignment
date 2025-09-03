@@ -6,4 +6,6 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: githubissue-sample
 spec:
-  # TODO(user): Add fields here
+  repo: my-repo
+  title: my-title
+  description: my-description
