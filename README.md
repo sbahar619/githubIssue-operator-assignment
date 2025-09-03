@@ -1,53 +1,135 @@
-# Home Assignment
+# github-issue-operator
+// TODO(user): Add simple overview of use/purpose
 
-Implement an operator that will allow creating/editing a github issue.
+## Description
+// TODO(user): An in-depth paragraph about your project and overview of use
 
-**Please make sure you have a basic understanding of the following concepts before you continue to read.**
-- [Controller](https://kubernetes.io/docs/concepts/architecture/controller/) 
-- [Custom Resource Definition (CRD)](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
-- [Operator](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) 
-- [Kubebuilder](https://book.kubebuilder.io)
-- [Operator-SDK](https://sdk.operatorframework.io/docs/)
+## Getting Started
 
-## GithubIssue Operator
+### Prerequisites
+- go version v1.24.0+
+- docker version 17.03+.
+- kubectl version v1.11.3+.
+- Access to a Kubernetes v1.11.3+ cluster.
 
-### Spec and Status
+### To Deploy on the cluster
+**Build and push your image to the location specified by `IMG`:**
 
-The kubernetes GithubIssue object must have those fields in its spec:
+```sh
+make docker-build docker-push IMG=<some-registry>/github-issue-operator:tag
+```
 
-- `repo`: to represent the url to the github repo - e.g https://github.com/rgolangh/dotfiles
-- `title`: the title of the issue
-- `description`: used as the description of the issue
+**NOTE:** This image ought to be published in the personal registry you specified.
+And it is required to have access to pull the image from the working environment.
+Make sure you have the proper permission to the registry if the above commands don’t work.
 
-The status field of the object must contain this fields:
+**Install the CRDs into the cluster:**
 
-- `conditions` (`[ ]metav1.Condition`): for each condition make sure to have `lastTransitionTimestamp`. Follow those guidelines to describe those conditions:
-    - issue has a PR
-    - issue is open
+```sh
+make install
+```
 
-### The Reconciliation behaviour:
-- Fetch the object
-- Fetch all the github issues of the repository. Find one with the exact title you need:
-    - If it doesn't exist -> create a github issue with the title and description.
-    - If it exists  -> update the description (if needed).
-- Update the k8s status with the real github issue state.
+**Deploy the Manager to the cluster with the image specified by `IMG`:**
 
-### Things to address
--  Implement deletion behaviour: a delete of the k8s object, triggers closing the github issue.
--  Tweak the resync period to every 1 minute.
--  Store the GitHub token you use in a secret and use it in the code by reading an env variable.
--  Add validation in the CRD level - an attempt to create a CRD with malformed 'repo' will fail
--  Writing unit tests. Those test cases should pass and cover:
-    - Failed attempt to create a real github issue
-    - Failed attempt to update an issue
-    - Create if issue not exist
-    - Close issues on delete
+```sh
+make deploy IMG=<some-registry>/github-issue-operator:tag
+```
 
-## Tools you should use
-This repo contains a go project you can fork it and use it as a template, also you will need:
-- [GitHub API Interaction](https://docs.github.com/en/rest/guides/getting-started-with-the-rest-api#issues) for communicating with the GitHub API
-- [Kind](https://kind.sigs.k8s.io)  for creating local cluster
-- [Go](https://go.dev) your operator should be written in Go
-- [Kubebuilder](https://book.kubebuilder.io) for creating the operator and crd template
-- [Operator-SDK](https://sdk.operatorframework.io/docs/) for documentation about controllers and syntax
-- [Ginkgo](https://onsi.github.io/ginkgo/) for testing
+> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
+privileges or be logged in as admin.
+
+**Create instances of your solution**
+You can apply the samples (examples) from the config/sample:
+
+```sh
+kubectl apply -k config/samples/
+```
+
+>**NOTE**: Ensure that the samples has default values to test it out.
+
+### To Uninstall
+**Delete the instances (CRs) from the cluster:**
+
+```sh
+kubectl delete -k config/samples/
+```
+
+**Delete the APIs(CRDs) from the cluster:**
+
+```sh
+make uninstall
+```
+
+**UnDeploy the controller from the cluster:**
+
+```sh
+make undeploy
+```
+
+## Project Distribution
+
+Following the options to release and provide this solution to the users.
+
+### By providing a bundle with all YAML files
+
+1. Build the installer for the image built and published in the registry:
+
+```sh
+make build-installer IMG=<some-registry>/github-issue-operator:tag
+```
+
+**NOTE:** The makefile target mentioned above generates an 'install.yaml'
+file in the dist directory. This file contains all the resources built
+with Kustomize, which are necessary to install this project without its
+dependencies.
+
+2. Using the installer
+
+Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
+the project, i.e.:
+
+```sh
+kubectl apply -f https://raw.githubusercontent.com/<org>/github-issue-operator/<tag or branch>/dist/install.yaml
+```
+
+### By providing a Helm Chart
+
+1. Build the chart using the optional helm plugin
+
+```sh
+kubebuilder edit --plugins=helm/v1-alpha
+```
+
+2. See that a chart was generated under 'dist/chart', and users
+can obtain this solution from there.
+
+**NOTE:** If you change the project, you need to update the Helm Chart
+using the same command above to sync the latest changes. Furthermore,
+if you create webhooks, you need to use the above command with
+the '--force' flag and manually ensure that any custom configuration
+previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
+is manually re-applied afterwards.
+
+## Contributing
+// TODO(user): Add detailed information on how you would like others to contribute to this project
+
+**NOTE:** Run `make help` for more information on all potential `make` targets
+
+More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+
+## License
+
+Copyright 2025.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
