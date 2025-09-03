@@ -8,4 +8,14 @@ layout:
 - go.kubebuilder.io/v4
 projectName: github-issue-operator
 repo: github.com/sbahar619/githubIssue-operator-assignment
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: shahaf.com
+  group: github
+  kind: GithubIssue
+  path: github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1
+  version: v1alpha1
 version: "3"
