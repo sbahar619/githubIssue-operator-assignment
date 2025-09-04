@@ -20,13 +20,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // GithubIssueSpec defines the desired state of GithubIssue
 type GithubIssueSpec struct {
+	// Repo is the GitHub repository URL
+	// +kubebuilder:validation:Pattern=`^https://github\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$`
+	// +kubebuilder:validation:MinLength=19
+	// +kubebuilder:validation:MaxLength=150
 	Repo string `json:"repo"`
+
+	// Title is the GitHub issue title that will be created or updated
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=256
 	Title string `json:"title"`
+
+	// Description is the GitHub issue body content
+	// +kubebuilder:validation:MaxLength=65536
 	// +optional
 	Description *string `json:"description,omitempty"`
 }

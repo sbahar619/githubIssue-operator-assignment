@@ -6,6 +6,6 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: githubissue-sample
 spec:
-  repo: my-repo
+  repo: https://github.com/sbahar619/githubIssue-operator-assignment
   title: my-title
-  description: my-description
+  description: "my-description"

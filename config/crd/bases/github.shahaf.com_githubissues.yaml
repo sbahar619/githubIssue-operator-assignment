@@ -40,10 +40,20 @@ spec:
             description: spec defines the desired state of GithubIssue
             properties:
               description:
+                description: Description is the GitHub issue body content
+                maxLength: 65536
                 type: string
               repo:
+                description: Repo is the GitHub repository URL
+                maxLength: 150
+                minLength: 19
+                pattern: ^https://github\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$
                 type: string
               title:
+                description: Title is the GitHub issue title that will be created
+                  or updated
+                maxLength: 256
+                minLength: 1
                 type: string
             required:
             - repo
