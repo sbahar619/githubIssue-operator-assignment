@@ -12,8 +12,7 @@ Implement secure GitHub token retrieval from Kubernetes secrets before GitHub AP
 ```
 internal/auth/
 ├── secrets.go          # Token retrieval logic
-├── secrets_test.go     # Unit tests
-└── config.go           # Environment configuration
+└── secrets_test.go     # Unit tests
 ```
 
 ## Step 1: Token Retrieval Infrastructure
@@ -91,40 +90,7 @@ func (tr *TokenRetriever) getSecretName() string {
 
 **Why**: Provides secure, namespace-isolated token retrieval with configurable secret names.
 
-## Step 2: Environment Configuration
-
-**Purpose**: Centralize configuration and prepare for GitHub API integration.
-
-### File: `internal/auth/config.go`
-
-```go
-package auth
-
-import (
-	"os"
-)
-
-// Config holds authentication configuration
-type Config struct {
-	GitHubTokenSecretName string
-}
-
-// NewConfig creates configuration from environment variables
-func NewConfig() *Config {
-	secretName := "github-token-secret"
-	if name := os.Getenv("GITHUB_TOKEN_SECRET_NAME"); name != "" {
-		secretName = name
-	}
-	
-	return &Config{
-		GitHubTokenSecretName: secretName,
-	}
-}
-```
-
-**Why**: Enables environment-based configuration needed for GitHub API setup in Phase 3.
-
-## Step 3: Controller Integration
+## Step 2: Controller Integration
 
 **Purpose**: Connect token retrieval to the reconciliation loop.
 
@@ -178,7 +144,7 @@ func main() {
 
 **Why**: Makes token retrieval available in the reconcile loop for GitHub API calls.
 
-## Step 4: RBAC Permissions
+## Step 3: RBAC Permissions
 
 **Purpose**: Allow controller to read secrets from namespaces.
 
@@ -191,7 +157,7 @@ func main() {
 
 **Why**: Controller needs permission to read GitHub token secrets.
 
-## Step 5: Unit Tests
+## Step 4: Unit Tests
 
 **Purpose**: Verify token retrieval works correctly with all scenarios.
 
