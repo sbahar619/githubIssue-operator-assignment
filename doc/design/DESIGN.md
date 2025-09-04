@@ -74,7 +74,16 @@ This document outlines the implementation plan for the GitHub Issue Operator, a 
    }
    ```
 
-3. **Code Clarity**: Prefer clear variable names over comments
+3. **Documentation Principles**: Keep documentation generic and implementation-agnostic
+   ```go
+   // Good: Generic, future-proof
+   // Conditions represent resource state following standard Kubernetes patterns
+   
+   // Bad: Hardcoded implementation details
+   // Known condition types are Ready, Synced, Error, and Conflict
+   ```
+
+4. **Code Clarity**: Prefer clear variable names over comments
    ```go
    // Good
    githubIssueTitle := githubIssue.Spec.Title
