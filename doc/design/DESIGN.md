@@ -385,66 +385,181 @@ make test-e2e        # Full end-to-end validation
 
 ## Implementation Plan
 
-### Phase 1: API Design and Enhancement (1 day)
+The implementation follows a logical progression where each phase builds upon the previous one. Each phase must be **completed and tested** before proceeding to the next.
 
-#### 1.1 Enhanced GithubIssueStatus Structure
-```go
-type GithubIssueStatus struct {
-    // Conditions represent the latest available observations
-    Conditions []metav1.Condition `json:"conditions,omitempty"`
-    
-    // IssueID is the GitHub issue number/ID
-    IssueID *int `json:"issueID,omitempty"`
-    
-    // URL is the direct link to the GitHub issue
-    URL string `json:"url,omitempty"`
-    
-    // State represents the current GitHub issue state (open/closed)
-    State string `json:"state,omitempty"`
-    
-    // HasPullRequest indicates if the issue has an associated pull request
-    HasPullRequest bool `json:"hasPullRequest,omitempty"`
-    
-    // LastSyncTime is when the issue was last synchronized
-    LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
-}
+### 🔄 **Logical Flow Overview**
+
+```
+Phase 1: Foundation ─→ Phase 2: Secrets ─→ Phase 3: GitHub API ─→ Phase 4: Controller ─→ Phase 5: Finalizers ─→ Phases 6-8: Polish
+     │                       │                      │                     │                    │                           │
+     ▼                       ▼                      ▼                     ▼                    ▼                           ▼
+API Structure        Secret Reading      GitHub Client      Basic Reconcile     Deletion Logic        Production Ready
+CRD Validation       Authentication      All Operations     Issue Management     Cleanup              Documentation
+Status Fields        Token Management    Error Handling     Status Updates       Error Recovery       Deployment
 ```
 
-#### 1.2 CRD-Level Validation
+### 🎯 **Phase Dependencies**
+
+| Phase | Prerequisites | Enables | Duration |
+|-------|--------------|---------|----------|
+| **Phase 1** | None | All subsequent phases | 1 day |
+| **Phase 2** | Phase 1 complete | GitHub API integration | 1 day |
+| **Phase 3** | Phase 2 complete | Controller implementation | 2 days |
+| **Phase 4** | Phase 3 complete | Finalizer logic | 2 days |
+| **Phase 5** | Phase 4 complete | Production features | 1 day |
+| **Phases 6-8** | Phase 5 complete | Production deployment | 5 days |
+
+### ⚠️ **Critical Success Factors**
+
+1. **No Phase Skipping**: Each phase must be fully tested before moving to the next
+2. **Complete Testing**: Each phase has specific completion criteria that must be met
+3. **Logical Dependencies**: Later phases require earlier phases to be working correctly
+4. **Incremental Complexity**: Each phase adds complexity only when the foundation is solid
+
+### Phase 1: Foundation and API Setup (1 day)
+
+**Goal**: Establish the API foundation and basic structure without business logic.
+
+**Detailed Implementation Plans**:
+- 📋 **Spec Changes**: `doc/design/api/API_SPEC_IMPLEMENTATION_PLAN.md`
+- 📋 **Status Changes**: `doc/design/api/API_STATUS_IMPLEMENTATION_PLAN.md`
+
+#### 1.1 GithubIssueSpec Validation Enhancement
+**Dependencies**: None  
+**Must Complete Before**: All subsequent phases  
+**Implementation Time**: 45 minutes
+
 ```go
 type GithubIssueSpec struct {
-    // Repo must be a valid GitHub repository in format "owner/repo"
-    // +kubebuilder:validation:Pattern=`^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$`
-    // +kubebuilder:validation:MinLength=3
-    // +kubebuilder:validation:MaxLength=100
+    // Repo is the GitHub repository URL (e.g., "https://github.com/octocat/Hello-World")
+    // +kubebuilder:validation:Pattern=`^https://github\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$`
+    // +kubebuilder:validation:MinLength=19
+    // +kubebuilder:validation:MaxLength=150
     Repo string `json:"repo"`
     
-    // Title of the GitHub issue
+    // Title is the GitHub issue title that will be created or updated
     // +kubebuilder:validation:MinLength=1
     // +kubebuilder:validation:MaxLength=256
     Title string `json:"title"`
     
-    // Description of the GitHub issue
+    // Description is the GitHub issue body content
     // +kubebuilder:validation:MaxLength=65536
     // +optional
     Description *string `json:"description,omitempty"`
 }
 ```
 
-#### 1.3 Finalizer Implementation
-```go
-const GithubIssueFinalizer = "github.shahaf.com/finalizer"
+**Key Validations**:
+- **Repo**: GitHub URL format, 19-150 characters
+- **Title**: Non-empty, max 256 characters (GitHub limit)
+- **Description**: Optional, max 65KB (safe API server limit)
 
-func (r *GithubIssueReconciler) addFinalizer(ctx context.Context, issue *githubv1alpha1.GithubIssue) error
-func (r *GithubIssueReconciler) removeFinalizer(ctx context.Context, issue *githubv1alpha1.GithubIssue) error
-func (r *GithubIssueReconciler) hasFinalizer(issue *githubv1alpha1.GithubIssue) bool
+#### 1.2 GithubIssueStatus Complete Implementation
+**Dependencies**: None  
+**Must Complete Before**: All subsequent phases  
+**Implementation Time**: 65 minutes
+
+```go
+type GithubIssueStatus struct {
+    // Conditions represent the latest available observations of the GithubIssue's current state
+    // Follows standard Kubernetes condition patterns for status reporting
+    // +optional
+    Conditions []metav1.Condition `json:"conditions,omitempty"`
+    
+    // IssueID is the GitHub issue number/ID returned from GitHub API
+    // This field is populated once the issue is successfully created or found
+    // +optional
+    IssueID *int `json:"issueID,omitempty"`
+    
+    // URL is the direct link to the GitHub issue
+    // Contains the full GitHub issue URL when available
+    // +optional
+    URL *string `json:"url,omitempty"`
+    
+    // State represents the current GitHub issue state
+    // Reflects the current state as returned by GitHub API
+    // +optional
+    State *string `json:"state,omitempty"`
+    
+    // HasPullRequest indicates if the issue has an associated pull request
+    // Populated based on GitHub issue analysis
+    // +optional
+    HasPullRequest *bool `json:"hasPullRequest,omitempty"`
+    
+    // LastSyncTime is when the issue was last synchronized with GitHub
+    // Updated during successful synchronization operations
+    // +optional
+    LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
+}
 ```
 
-### Phase 2: GitHub Integration (2 days)
+**Key Design Decisions**:
+- **Pointer types** for nullable fields (consistent nil semantics)
+- **Standard metav1.Condition** for Kubernetes compatibility
+- **No hardcoded values** in documentation (future-proof)
+- **+optional markers** on all status fields
 
-#### 2.1 GitHub Client Structure
+**Phase 1 Completion Criteria**:
+- ✅ **Spec validations**: All validation markers implemented per `API_SPEC_IMPLEMENTATION_PLAN.md`
+- ✅ **Status structure**: Complete implementation per `API_STATUS_IMPLEMENTATION_PLAN.md`
+- ✅ **CRD generation**: `make manifests` succeeds without errors
+- ✅ **Code generation**: `make generate` succeeds (creates DeepCopy methods)
+- ✅ **Validation**: Generated CRD contains all validation rules in OpenAPI schema
+- ✅ **Quality**: `make lint` passes without errors
+- ✅ **Documentation**: All fields have appropriate GoDoc comments
+
+### Phase 2: Secret Management and Authentication (1 day)
+
+**Goal**: Implement secure GitHub token retrieval before any GitHub API calls.
+
+**Dependencies**: Phase 1 must be complete  
+**Must Complete Before**: Phase 3 (GitHub Integration)
+
+#### 2.1 Secret Reading Infrastructure
+**File**: `internal/utils/secrets.go`
+
 ```go
-// File: internal/github/client.go
+// GetTokenFromSecret retrieves GitHub token from namespace-scoped secret
+func GetTokenFromSecret(ctx context.Context, client client.Client, namespace string) (string, error) {
+    secretName := os.Getenv("GITHUB_TOKEN_SECRET_NAME")
+    if secretName == "" {
+        secretName = "github-token"
+    }
+    // Implementation
+}
+```
+
+#### 2.2 Environment Configuration
+**File**: `internal/config/config.go`
+
+```go
+type Config struct {
+    GitHubTokenSecretName string
+    ResyncPeriod         time.Duration
+}
+
+func NewConfig() *Config {
+    // Load from environment variables
+}
+```
+
+**Phase 2 Completion Criteria**:
+- ✅ Secret reading function works with test secrets
+- ✅ Environment variable configuration tested
+- ✅ Error handling for missing secrets implemented
+- ✅ Unit tests for secret retrieval (90% coverage)
+
+### Phase 3: GitHub API Integration (2 days)
+
+**Goal**: Implement all GitHub operations needed for issue management.
+
+**Dependencies**: Phase 2 (secret management) must be complete  
+**Must Complete Before**: Phase 4 (Controller Logic)
+
+#### 3.1 GitHub Client Structure
+**File**: `internal/github/client.go`
+
+```go
 type Client struct {
     client *github.Client
     owner  string
@@ -459,32 +574,43 @@ func (c *Client) CloseIssue(ctx context.Context, issueNumber int) error
 func (c *Client) HasPullRequest(ctx context.Context, issueNumber int) (bool, error)
 ```
 
-#### 2.2 Authentication Implementation
-```go
-// File: internal/github/auth.go
-func GetTokenFromSecret(ctx context.Context, client client.Client, namespace string) (string, error) {
-    secretName := os.Getenv("GITHUB_TOKEN_SECRET_NAME")
-    if secretName == "" {
-        secretName = "github-token"
-    }
-    // Implementation
-}
-```
-
-#### 2.3 GitHub Operations
+#### 3.2 GitHub Operations
 - **List Issues**: GET `/repos/{owner}/{repo}/issues` - to find existing issues by title
 - **Create Issue**: POST `/repos/{owner}/{repo}/issues`
 - **Update Issue**: PATCH `/repos/{owner}/{repo}/issues/{issue_number}`
 - **Close Issue**: PATCH `/repos/{owner}/{repo}/issues/{issue_number}` with `state: "closed"`
 - **Check PR Association**: GET `/repos/{owner}/{repo}/issues/{issue_number}/events` - check for linked PRs
 
-### Phase 3: Controller Implementation (3 days)
+#### 3.3 Repository URL Parsing
+**File**: `internal/utils/parser.go`
 
-#### 3.1 Main Reconciliation Logic
+```go
+func ParseRepoURL(repo string) (owner, name string, err error) {
+    // Parse GitHub repository URL into owner and repo name
+}
+```
+
+**Phase 3 Completion Criteria**:
+- ✅ All GitHub operations work with real GitHub API
+- ✅ Authentication integration with secret management works
+- ✅ Error handling for all GitHub API scenarios
+- ✅ Integration tests with GitHub mock (100% coverage)
+- ✅ Repository URL parsing works correctly
+
+### Phase 4: Controller Logic Implementation (2 days)
+
+**Goal**: Implement core reconciliation logic without finalizer handling.
+
+**Dependencies**: Phase 3 (GitHub Integration) must be complete  
+**Must Complete Before**: Phase 5 (Finalizer Implementation)
+
+#### 4.1 Basic Reconciliation Structure
+**File**: `internal/controller/githubissue_controller.go`
+
 ```go
 func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
     // 1. Fetch GithubIssue resource
-    // 2. Handle deletion (finalizer logic)
+    // 2. Skip deletion handling for now (Phase 5)
     // 3. Parse repository URL
     // 4. Authenticate with GitHub
     // 5. Fetch all GitHub issues
@@ -494,15 +620,15 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 }
 ```
 
-#### 3.2 Helper Functions (SRP compliance)
+#### 4.2 Helper Functions (SRP compliance)
 ```go
-func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, issue *githubv1alpha1.GithubIssue) (ctrl.Result, error)
-func (r *GithubIssueReconciler) ensureGithubIssue(ctx context.Context, ghClient *github.Client, issue *githubv1alpha1.GithubIssue) error
+func (r *GithubIssueReconciler) ensureGithubIssue(ctx context.Context, issue *githubv1alpha1.GithubIssue) error
 func (r *GithubIssueReconciler) updateStatus(ctx context.Context, issue *githubv1alpha1.GithubIssue, ghIssue *github.Issue) error
 func (r *GithubIssueReconciler) detectConflicts(ctx context.Context, issue *githubv1alpha1.GithubIssue) error
+func (r *GithubIssueReconciler) getGithubClient(ctx context.Context, namespace, owner, repo string) (*github.Client, error)
 ```
 
-#### 3.3 Corrected Reconciliation Logic Flow
+#### 4.3 Reconciliation Logic Flow
 ```
 1. Fetch GithubIssue resource from Kubernetes
 2. Parse repository URL (owner/repo) 
@@ -520,14 +646,9 @@ func (r *GithubIssueReconciler) detectConflicts(ctx context.Context, issue *gith
 10. Handle conflicts (multiple CRs with same title)
 ```
 
-#### 3.4 Error Handling Strategy
-- **Authentication Errors**: Set error condition, requeue after 30 seconds
-- **Repository Not Found**: Set failed condition, don't requeue
-- **Permission Denied**: Set error condition, requeue after 5 minutes
-- **Network Errors**: Retry with exponential backoff (max 3 retries)
-- **Conflict Detection**: Set error condition for duplicate title conflicts
+#### 4.4 Status Management
+**File**: `internal/controller/conditions.go`
 
-#### 3.5 Status Conditions
 ```go
 const (
     ConditionTypeReady          = "Ready"
@@ -535,43 +656,130 @@ const (
     ConditionTypeError          = "Error"
     ConditionTypeConflict       = "Conflict"
 )
+
+func (r *GithubIssueReconciler) setReadyCondition(ctx context.Context, issue *githubv1alpha1.GithubIssue) error
+func (r *GithubIssueReconciler) setErrorCondition(ctx context.Context, issue *githubv1alpha1.GithubIssue, reason, message string) error
 ```
 
-### Phase 4: Testing Implementation (2 days)
+#### 4.5 Error Handling Strategy
+- **Authentication Errors**: Set error condition, requeue after 30 seconds
+- **Repository Not Found**: Set failed condition, don't requeue
+- **Permission Denied**: Set error condition, requeue after 5 minutes
+- **Network Errors**: Retry with exponential backoff (max 3 retries)
+- **Conflict Detection**: Set error condition for duplicate title conflicts
 
-#### 4.1 Unit Test Structure
+**Phase 4 Completion Criteria**:
+- ✅ Basic reconcile logic works without deletion handling
+- ✅ GitHub issue creation and updates functional
+- ✅ Status conditions properly managed
+- ✅ Conflict detection between multiple CRs works
+- ✅ Unit tests for all helper functions (90% coverage)
+- ✅ Integration tests with real GitHub API
+
+### Phase 5: Finalizer Implementation (1 day)
+
+**Goal**: Add proper cleanup logic for resource deletion.
+
+**Dependencies**: Phase 4 (Controller Logic) must be complete  
+**Must Complete Before**: Phase 6 (Advanced Features)
+
+#### 5.1 Finalizer Helper Functions
+**File**: `internal/controller/finalizers.go`
+
 ```go
-// File: internal/controller/githubissue_controller_test.go
-var _ = Describe("GithubIssue Controller", func() {
-    var (
-        ctx       context.Context
-        k8sClient client.Client
-        reconciler *GithubIssueReconciler
-    )
-    
-    BeforeEach(func() {
-        // Setup fake client and reconciler
-    })
-    
-    Context("Creating GitHub Issues", func() {
-        It("Should create issue when none exists", func() {})
-        It("Should update description when issue exists", func() {})
-        It("Should handle authentication failures", func() {})
-    })
-    
-    Context("Conflict Resolution", func() {
-        It("Should detect title conflicts", func() {})
-        It("Should set appropriate error conditions", func() {})
-    })
-    
-    Context("Deletion Handling", func() {
-        It("Should close GitHub issue on CR deletion", func() {})
-        It("Should remove finalizer after closing issue", func() {})
-    })
-})
+const GithubIssueFinalizer = "github.shahaf.com/finalizer"
+
+func (r *GithubIssueReconciler) addFinalizer(ctx context.Context, issue *githubv1alpha1.GithubIssue) error
+func (r *GithubIssueReconciler) removeFinalizer(ctx context.Context, issue *githubv1alpha1.GithubIssue) error
+func (r *GithubIssueReconciler) hasFinalizer(issue *githubv1alpha1.GithubIssue) bool
+func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, issue *githubv1alpha1.GithubIssue) (ctrl.Result, error)
 ```
 
-#### 4.2 Integration Tests with Mock
+#### 5.2 Enhanced Reconcile Logic
+```go
+func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+    // 1. Fetch GithubIssue resource
+    // 2. Handle deletion (finalizer logic) - NEW
+    // 3. Add finalizer if not present - NEW
+    // 4. Normal reconciliation logic (from Phase 4)
+}
+```
+
+#### 5.3 Deletion Flow
+```
+1. Check if resource has DeletionTimestamp
+2. If deleting and has finalizer:
+   - Close GitHub issue if IssueID exists
+   - Handle GitHub API errors gracefully
+   - Remove finalizer after successful cleanup
+3. If not deleting:
+   - Add finalizer if missing
+   - Proceed with normal reconciliation
+```
+
+**Phase 5 Completion Criteria**:
+- ✅ Finalizer addition/removal works correctly
+- ✅ GitHub issue closure during deletion functional
+- ✅ Error handling during deletion with proper requeue
+- ✅ Unit tests for all finalizer functions (100% coverage)
+- ✅ E2E tests for deletion scenarios
+
+### Phase 6: Advanced Features and Polish (2 days)
+
+**Goal**: Implement advanced features and production readiness.
+
+**Dependencies**: Phase 5 (Finalizer Implementation) must be complete  
+**Must Complete Before**: Deployment to production
+
+#### 6.1 Enhanced Status Synchronization
+**Dependencies**: Core functionality must be working
+
+- **1-minute resync period**: Force reconciliation to detect external changes
+- **Conflict resolution**: Handle multiple CRs requesting same issue
+- **PR detection**: Enhanced GitHub issue event analysis
+
+#### 6.2 RBAC Enhancement
+**File**: `config/rbac/`
+
+```yaml
+# githubissue_viewer_role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: githubissue-viewer
+rules:
+- apiGroups: ["github.shahaf.com"]
+  resources: ["githubissues"]
+  verbs: ["get", "list", "watch"]
+```
+
+#### 6.3 Production Configuration
+- **Helm chart creation**: Production deployment manifests
+- **Resource limits**: Memory and CPU constraints
+- **Security contexts**: Non-root user, read-only filesystem
+
+**Phase 6 Completion Criteria**:
+- ✅ Advanced features working reliably
+- ✅ Production-ready configuration
+- ✅ RBAC roles properly configured
+- ✅ Helm chart tested and validated
+
+### Phase 7: Testing and Quality Assurance (2 days)
+
+**Goal**: Comprehensive testing across all phases.
+
+**Dependencies**: Phases 1-6 must be complete  
+**Must Complete Before**: Production deployment
+
+#### 7.1 Unit Test Implementation
+**Coverage Requirements**:
+- **Secret management**: 90% coverage
+- **GitHub client**: 90% coverage  
+- **Controller logic**: 90% coverage
+- **Finalizer functions**: 100% coverage
+
+#### 7.2 Integration Test Suite
+**Using GitHub Mock Library**:
 ```go
 // File: internal/github/client_test.go
 func TestGithubClient_CreateIssue(t *testing.T) {
@@ -588,28 +796,40 @@ func TestGithubClient_CreateIssue(t *testing.T) {
 }
 ```
 
-### Phase 5: CI/CD Setup (1 day)
+#### 7.3 E2E Test Scenarios
+**Complete Workflow Testing**:
+```go
+// File: test/e2e/e2e_test.go
+var _ = Describe("GithubIssue E2E", func() {
+    It("Should manage GitHub issues end-to-end", func() {
+        By("Creating a GithubIssue CR")
+        By("Verifying GitHub issue creation")
+        By("Updating the CR description")
+        By("Verifying GitHub issue update")
+        By("Deleting the CR")
+        By("Verifying GitHub issue closure")
+    })
+})
+```
 
-#### 5.1 GitHub Actions Configuration
-- Create comprehensive CI workflow
-- Add quality gates for all checks
-- Configure E2E testing with kind cluster
-- Set up code coverage reporting
+**Phase 7 Completion Criteria**:
+- ✅ All unit tests pass with required coverage
+- ✅ Integration tests cover all GitHub operations
+- ✅ E2E tests validate complete workflows
+- ✅ CI/CD pipeline runs all tests successfully
 
-#### 5.2 Makefile Enhancement
-- Add testing targets
-- Create CI check aggregation
-- Add coverage reporting
+### Phase 8: Documentation and Deployment (1 day)
 
-### Phase 6: Documentation and Deployment (1 day)
+**Goal**: Final documentation and deployment preparation.
 
-#### 6.1 Minimal Documentation
-Single `README.md` with:
-- Installation via Helm
-- Basic usage example
-- Configuration options
+**Dependencies**: All previous phases must be complete
 
-#### 6.2 Helm Chart
+#### 8.1 Documentation
+- **README.md**: Installation and usage guide
+- **Troubleshooting**: Common issues and solutions
+- **API Reference**: Generated from code comments
+
+#### 8.2 Deployment Artifacts
 ```
 charts/github-issue-operator/
 ├── Chart.yaml
@@ -619,6 +839,11 @@ charts/github-issue-operator/
     ├── rbac.yaml
     └── configmap.yaml
 ```
+
+**Phase 8 Completion Criteria**:
+- ✅ Complete user documentation
+- ✅ Tested Helm chart
+- ✅ Production deployment ready
 
 ## Configuration and Security
 
