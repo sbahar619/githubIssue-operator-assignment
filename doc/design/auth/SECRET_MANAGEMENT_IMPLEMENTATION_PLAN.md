@@ -102,24 +102,15 @@ package auth
 
 import (
 	"os"
-	"time"
 )
 
 // Config holds authentication configuration
 type Config struct {
 	GitHubTokenSecretName string
-	ResyncPeriod          time.Duration
 }
 
 // NewConfig creates configuration from environment variables
 func NewConfig() *Config {
-	resyncPeriod := time.Minute
-	if period := os.Getenv("RESYNC_PERIOD"); period != "" {
-		if d, err := time.ParseDuration(period); err == nil {
-			resyncPeriod = d
-		}
-	}
-	
 	secretName := "github-token-secret"
 	if name := os.Getenv("GITHUB_TOKEN_SECRET_NAME"); name != "" {
 		secretName = name
@@ -127,7 +118,6 @@ func NewConfig() *Config {
 	
 	return &Config{
 		GitHubTokenSecretName: secretName,
-		ResyncPeriod:          resyncPeriod,
 	}
 }
 ```
@@ -374,6 +364,5 @@ data:
 
 **Environment Variables**:
 - `GITHUB_TOKEN_SECRET_NAME`: Secret name (default: "github-token-secret")
-- `RESYNC_PERIOD`: Reconcile frequency (default: "1m")
 
 This implementation provides secure, testable GitHub token management ready for Phase 3 GitHub API integration.
