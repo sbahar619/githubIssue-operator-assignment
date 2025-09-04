@@ -147,6 +147,23 @@ var _ = Describe("GithubIssue Controller", func() {
 - Status condition management: 100%
 - Error handling scenarios: 90%
 
+### Testing Scope and Boundaries
+
+#### What We Test
+- ✅ **Controller Business Logic**: Reconciliation workflows, state management
+- ✅ **GitHub API Integration**: Client operations, error handling, authentication
+- ✅ **Status Management**: Condition updates, conflict detection
+- ✅ **Error Scenarios**: Network failures, permission errors, invalid responses
+
+#### What We DON'T Test
+- ❌ **CRD Validation Rules**: Kubernetes API server functionality, not our responsibility
+- ❌ **Kubebuilder Markers**: Framework-generated code, tested by upstream
+- ❌ **Basic Kubernetes Operations**: Client-go functionality, well-tested upstream
+- ❌ **GitHub API Internals**: External service behavior, covered by their testing
+
+#### Rationale
+**Focus on Our Value**: Test the code we write, not the platforms we build on. CRD validation happens at the Kubernetes API server level and is outside our controller's scope. Testing validation markers would duplicate Kubernetes' own comprehensive testing and provide minimal value while consuming development resources.
+
 #### Integration Tests (Using GitHub Mock)
 ```go
 // File: internal/github/client_test.go
