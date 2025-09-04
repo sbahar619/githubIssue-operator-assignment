@@ -41,8 +41,35 @@ type GithubIssueSpec struct {
 
 // GithubIssueStatus defines the observed state of GithubIssue.
 type GithubIssueStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Conditions represent the latest available observations of the GithubIssue's current state
+	// Follows standard Kubernetes condition patterns for status reporting
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// IssueID is the GitHub issue number/ID returned from GitHub API
+	// This field is populated once the issue is successfully created or found
+	// +optional
+	IssueID *int `json:"issueID,omitempty"`
+
+	// URL is the direct link to the GitHub issue
+	// Contains the full GitHub issue URL when available
+	// +optional
+	URL *string `json:"url,omitempty"`
+
+	// State represents the current GitHub issue state
+	// Reflects the current state as returned by GitHub API
+	// +optional
+	State *string `json:"state,omitempty"`
+
+	// HasPullRequest indicates if the issue has an associated pull request
+	// Populated based on GitHub issue analysis
+	// +optional
+	HasPullRequest *bool `json:"hasPullRequest,omitempty"`
+
+	// LastSyncTime is when the issue was last synchronized with GitHub
+	// Updated during successful synchronization operations
+	// +optional
+	LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true
