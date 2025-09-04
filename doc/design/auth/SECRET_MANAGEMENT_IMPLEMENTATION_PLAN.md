@@ -47,7 +47,6 @@ type TokenRetriever struct {
 	client client.Client
 }
 
-// NewTokenRetriever creates a new token retriever instance
 func NewTokenRetriever(client client.Client) *TokenRetriever {
 	return &TokenRetriever{client: client}
 }
@@ -79,7 +78,6 @@ func (tr *TokenRetriever) GetGitHubToken(ctx context.Context, namespace string) 
 	return token, nil
 }
 
-// getSecretName returns the secret name from environment or default
 func (tr *TokenRetriever) getSecretName() string {
 	if name := os.Getenv("GITHUB_TOKEN_SECRET_NAME"); name != "" {
 		return name
@@ -96,49 +94,92 @@ func (tr *TokenRetriever) getSecretName() string {
 
 ### Update: `internal/controller/githubissue_controller.go`
 
+**Import Addition** (line 28, after existing imports):
 ```go
-// Add to imports
-import (
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/auth"
-)
+"github.com/sbahar619/githubIssue-operator-assignment/internal/auth"
+```
 
-// Add to GithubIssueReconciler struct
+**Struct Update** (lines 32-36, modify existing struct):
+```go
 type GithubIssueReconciler struct {
 	client.Client
 	Scheme         *runtime.Scheme
-	TokenRetriever *auth.TokenRetriever  // NEW
+	TokenRetriever *auth.TokenRetriever  // ADD this field
 }
+```
 
-// Add helper method
+**Reconcile Method Update** (replace lines 52-57, the empty reconcile logic):
+```go
+func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	// Fetch the GithubIssue resource
+	var githubIssue githubv1alpha1.GithubIssue
+	if err := r.Get(ctx, req.NamespacedName, &githubIssue); err != nil {
+		log.Error(err, "unable to fetch GithubIssue")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// Get GitHub token from secret
+	token, err := r.TokenRetriever.GetGitHubToken(ctx, githubIssue.Namespace)
+	if err != nil {
+		log.Error(err, "failed to retrieve GitHub token")
+		// TODO: Set error condition in status (Phase 4)
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+
+	log.Info("Successfully retrieved GitHub token", "namespace", githubIssue.Namespace)
+	// TODO: Use token for GitHub API calls (Phase 3)
+
+	return ctrl.Result{}, nil
+}
+```
+
+**Helper Method** (add after line 69, end of file):
+```go
 func (r *GithubIssueReconciler) getGitHubToken(ctx context.Context, namespace string) (string, error) {
 	return r.TokenRetriever.GetGitHubToken(ctx, namespace)
 }
 ```
 
-### Update: `cmd/main.go`
-
+**Import Update** (add to imports section):
 ```go
-// Add to imports
 import (
+	"context"
+	"time"  // ADD this import for RequeueAfter
+
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/auth"
 )
+```
 
-// Add before controller setup
-func main() {
-	// ... existing setup ...
-	
-	// Create token retriever
-	tokenRetriever := auth.NewTokenRetriever(mgr.GetClient())
-	
-	// Enhanced controller setup
-	if err := (&controller.GithubIssueReconciler{
-		Client:         mgr.GetClient(),
-		Scheme:         mgr.GetScheme(),
-		TokenRetriever: tokenRetriever,  // NEW
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "GithubIssue")
-		os.Exit(1)
-	}
+### Update: `cmd/main.go`
+
+**Import Addition** (line 41, after existing imports):
+```go
+"github.com/sbahar619/githubIssue-operator-assignment/internal/auth"
+```
+
+**Token Retriever Creation** (add after line 204, after manager creation):
+```go
+// Create token retriever for GitHub authentication
+tokenRetriever := auth.NewTokenRetriever(mgr.GetClient())
+```
+
+**Controller Setup Update** (lines 206-212, replace existing controller creation):
+```go
+if err := (&controller.GithubIssueReconciler{
+	Client:         mgr.GetClient(),
+	Scheme:         mgr.GetScheme(),
+	TokenRetriever: tokenRetriever,  // ADD this field
+}).SetupWithManager(mgr); err != nil {
+	setupLog.Error(err, "unable to create controller", "controller", "GithubIssue")
+	os.Exit(1)
 }
 ```
 
@@ -150,14 +191,97 @@ func main() {
 
 ### Update: `internal/controller/githubissue_controller.go`
 
+**RBAC Marker Addition** (add after line 40, after existing RBAC markers):
 ```go
-// Add RBAC marker
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 ```
 
 **Why**: Controller needs permission to read GitHub token secrets.
 
-## Step 4: Unit Tests
+## Step 4: Code Cleanup (Optional)
+
+**Purpose**: Remove redundant auto-generated comments for cleaner, production-ready code.
+
+### Update: `cmd/main.go`
+
+**Remove verbose auto-generated comments** (lines 25-27):
+```go
+// DELETE these lines:
+// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+// to ensure that exec-entrypoint and run can make use of them.
+```
+
+**Remove detailed scaffold comments** (lines 137-140):
+```go
+// DELETE these lines:
+// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
+// More info:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/metrics/server
+// - https://book.kubebuilder.io/reference/metrics.html
+```
+
+**Remove production TODO comments** (lines 159-162):
+```go
+// DELETE these lines:
+// TODO(user): If you enable certManager, uncomment the following lines:
+// - [METRICS-WITH-CERTS] at config/default/kustomization.yaml to generate and use certificates
+// managed by cert-manager for the metrics server.
+// - [PROMETHEUS-WITH-CERTS] at config/prometheus/kustomization.yaml for TLS certification.
+```
+
+**Remove verbose LeaderElection comments** (lines 189-199):
+```go
+// DELETE these lines:
+// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
+// when the Manager ends. This requires the binary to immediately end when the
+// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
+// speeds up voluntary leader transitions as the new leader don't have to wait
+// LeaseDuration time first.
+//
+// In the default scaffold provided, the program ends immediately after
+// the manager stops, so would be fine to enable this option. However,
+// if you are doing or is intended to do any operation such as perform cleanups
+// after the manager stops then its usage might be unsafe.
+```
+
+### Update: `internal/controller/githubissue_controller.go`
+
+**Remove scaffold comment** (line 31):
+```go
+// DELETE this line:
+// GithubIssueReconciler reconciles a GithubIssue object
+```
+
+**Remove verbose Reconcile comments** (lines 43-51):
+```go
+// DELETE these lines:
+// Reconcile is part of the main kubernetes reconciliation loop which aims to
+// move the current state of the cluster closer to the desired state.
+// TODO(user): Modify the Reconcile function to compare the state specified by
+// the GithubIssue object against the actual cluster state, and then
+// perform operations to make the cluster state reflect the state specified by
+// the user.
+//
+// For more details, check Reconcile and its Result here:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
+```
+
+**Remove placeholder comments** (lines 53, 55):
+```go
+// DELETE these lines:
+_ = logf.FromContext(ctx)
+// TODO(user): your logic here
+```
+
+**Remove method comment** (line 60):
+```go
+// DELETE this line:
+// SetupWithManager sets up the controller with the Manager.
+```
+
+**Why**: Removes unnecessary verbosity while keeping essential functionality clear and professional.
+
+## Step 5: Unit Tests
 
 **Purpose**: Verify token retrieval works correctly with all scenarios.
 
@@ -289,7 +413,7 @@ var _ = Describe("TokenRetriever", func() {
 })
 ```
 
-**Why**: Ensures all token retrieval scenarios work correctly before GitHub integration.
+**Why**: Comprehensive test coverage ensures reliability before GitHub API integration.
 
 ## Completion Criteria
 
