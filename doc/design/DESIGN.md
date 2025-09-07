@@ -5,7 +5,7 @@
 ## Standards
 - [Coding Standards](../standards/CODING_STANDARDS.md)
 - [Testing Strategy](../standards/TESTING_STRATEGY.md) 
-- [CI/CD Requirements](../standards/CICD_REQUIREMENTS.md)
+- [CI/CD Requirements](../standards/CICD_REQUIREMENTS.md) → [GitHub Actions Implementation](cicd/implementation/GITHUB_ACTIONS_IMPLEMENTATION.md)
 
 ## Components
 - **API**: [Spec Design](api/design/SPEC_DESIGN.md) | [Status Design](api/design/STATUS_DESIGN.md) → [Spec Implementation](api/implementation/SPEC_IMPLEMENTATION.md) | [Status Implementation](api/implementation/STATUS_IMPLEMENTATION.md)
