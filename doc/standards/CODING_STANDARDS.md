@@ -60,5 +60,3 @@ internal/
 make lint test ci-checks
 ```
 
-## Related Documentation
-- [Architecture](../design/ARCHITECTURE.md) | [Testing Strategy](TESTING_STRATEGY.md) | [CI/CD Requirements](CICD_REQUIREMENTS.md)

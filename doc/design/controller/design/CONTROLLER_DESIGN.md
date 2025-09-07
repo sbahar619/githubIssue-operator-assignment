@@ -183,8 +183,3 @@ Helper functions handle repository URL parsing, issue comparison, and pull reque
 - **Webhooks**: GitHub webhook integration for real-time updates
 - **Batch Processing**: Multiple CR processing optimization
 
-## Related Documentation
-- 🏗️ [System Architecture](../ARCHITECTURE.md)
-- 📋 [Implementation Phases](../PHASES.md)
-- 📋 [Reconciliation Implementation](RECONCILE_IMPLEMENTATION.md)
-- 🧪 [Testing Strategy](../../standards/TESTING_STRATEGY.md)

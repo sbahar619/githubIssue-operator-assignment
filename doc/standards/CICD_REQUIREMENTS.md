@@ -85,5 +85,3 @@ make test-e2e
 - Require status checks: `lint`, `test`, `e2e`
 - Squash and merge only
 
-## Related Documentation
-- [Architecture](../design/ARCHITECTURE.md) | [Coding Standards](CODING_STANDARDS.md) | [Testing Strategy](TESTING_STRATEGY.md)

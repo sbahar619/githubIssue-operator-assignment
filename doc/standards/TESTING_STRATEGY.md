@@ -10,17 +10,24 @@ Every change must include:
 
 ## Test Types
 
-### Unit Tests (Ginkgo + Fake Client)
+### Unit Tests
 - **Coverage**: >90% for business logic
 - **Framework**: Ginkgo + Gomega
-- **Client**: Fake Kubernetes client
+- **Clients**: Fake Kubernetes client + GitHub mock client
+- **GitHub Library**: `go-github-mock`
 
 ```go
+// Controller tests with fake client
 var _ = Describe("GithubIssue Controller", func() {
     It("Should create GitHub issue when none exists", func() {
-        // Test with fake client
+        // Test with fake Kubernetes client
     })
 })
+
+// GitHub operations with mock client
+mockedHTTPClient := mock.NewMockedHTTPClient(
+    mock.WithRequestMatch(mock.PostReposIssuesByOwnerByRepo, github.Issue{ID: github.Int64(123)}),
+)
 ```
 
 ### Testing Scope
@@ -28,19 +35,8 @@ var _ = Describe("GithubIssue Controller", func() {
 **Test**: Our business logic, GitHub integration, error handling  
 **Don't Test**: CRD validation (Kubernetes handles), framework code (upstream tested)
 
-### Integration Tests (GitHub Mock)
-- **Library**: `go-github-mock`
-- **Coverage**: All GitHub operations
-- **Scenarios**: Create, update, close, conflicts, auth failures
-
-```go
-mockedHTTPClient := mock.NewMockedHTTPClient(
-    mock.WithRequestMatch(mock.PostReposIssuesByOwnerByRepo, github.Issue{ID: github.Int64(123)}),
-)
-```
-
-### E2E Tests (Real GitHub)
-- **Framework**: Ginkgo + real Kubernetes cluster
+### E2E Tests
+- **Framework**: Ginkgo + real Kubernetes cluster + real GitHub API
 - **Coverage**: Complete workflows (create → update → delete)
 - **Location**: `test/e2e/`
 
@@ -48,10 +44,7 @@ mockedHTTPClient := mock.NewMockedHTTPClient(
 
 ```bash
 # Unit tests
-make test-unit
-
-# Integration tests  
-make test-integration
+make test
 
 # E2E tests
 make test-e2e
@@ -60,5 +53,3 @@ make test-e2e
 make ci-checks
 ```
 
-## Related Documentation
-- [Architecture](../design/ARCHITECTURE.md) | [Coding Standards](CODING_STANDARDS.md) | [CI/CD Requirements](CICD_REQUIREMENTS.md)

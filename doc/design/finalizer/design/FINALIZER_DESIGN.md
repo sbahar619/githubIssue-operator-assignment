@@ -152,8 +152,3 @@ Verification logic checks issue state after cleanup attempts, treating both clos
 - **Manual Cleanup**: Scripts for manual cleanup of orphaned resources
 - **Reconciliation**: Re-sync tools for cleanup verification
 
-## Related Documentation
-- 🏗️ [System Architecture](../ARCHITECTURE.md)
-- 📋 [Implementation Phases](../PHASES.md)
-- 📋 [Cleanup Implementation](CLEANUP_IMPLEMENTATION.md)
-- 🔧 [Controller Design](../controller/CONTROLLER_DESIGN.md)
