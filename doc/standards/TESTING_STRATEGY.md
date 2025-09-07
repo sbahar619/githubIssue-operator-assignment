@@ -40,6 +40,14 @@ mockedHTTPClient := mock.NewMockedHTTPClient(
 - **Coverage**: Complete workflows (create → update → delete)
 - **Location**: `test/e2e/`
 
+#### GitHub Client Functions Requiring E2E Testing
+Due to `go-github-mock` limitations, these functions cannot be properly unit tested:
+- `UpdateIssue` - No mock constant for PATCH operations
+- `CloseIssue` - No mock constant for PATCH operations  
+- `HasPullRequest` - No mock constant for individual issue GET
+- `handleError` - Cannot simulate GitHub API error responses
+- Error handling paths in `ListIssues`, `GetIssueByTitle`, `CreateIssue`
+
 ## Commands
 
 ```bash
