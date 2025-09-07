@@ -2,9 +2,9 @@ name: Unit Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, github-issue-operator ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, github-issue-operator ]
 
 env:
   GO_VERSION: '1.24'
