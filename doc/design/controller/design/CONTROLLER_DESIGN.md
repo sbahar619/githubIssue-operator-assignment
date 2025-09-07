@@ -113,7 +113,29 @@ Standard Kubernetes finalizer pattern for deletion handling and cleanup coordina
 ## Reconciliation Logic Flow
 
 ### Standard Reconciliation Path
-The reconciliation follows a clear sequence: fetch CR, handle deletion, manage finalizers, authenticate, create GitHub client, sync issue state, update status, and handle conflicts.
+1. **Fetch CR**: Get GithubIssue resource from Kubernetes API
+2. **Handle Deletion**: Check for deletion timestamp, run finalizer logic
+3. **Authenticate**: Retrieve GitHub token from environment variable
+4. **Create GitHub Client**: Initialize GitHub client with token
+5. **Sync Issue State**: Fetch/create/update GitHub issue based on CR spec
+6. **Update Status**: Set CR status with GitHub issue details
+7. **Handle Conflicts**: Detect and report conflicts with other CRs
+
+### Authentication Step Details
+```go
+// Step 3: Authenticate
+token, err := auth.GetGitHubToken()
+if err != nil {
+    // Set error condition in CR status
+    meta.SetStatusCondition(&cr.Status.Conditions, metav1.Condition{
+        Type:    "Ready",
+        Status:  metav1.ConditionFalse,
+        Reason:  "AuthenticationFailed",
+        Message: "GitHub token not available: " + err.Error(),
+    })
+    return ctrl.Result{RequeueAfter: time.Minute * 5}, nil
+}
+```
 
 ### Error Handling Flow
 Errors are classified by type (transient, configuration, business logic) with appropriate condition setting, logging, and requeue strategies based on error category.

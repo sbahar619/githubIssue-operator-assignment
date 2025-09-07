@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,9 +26,16 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
+	"github.com/sbahar619/githubIssue-operator-assignment/internal/auth"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// GithubIssueReconciler reconciles a GithubIssue object
+const (
+	ConditionTypeReady         = "Ready"
+	ReasonAuthenticationFailed = "AuthenticationFailed"
+)
+
 type GithubIssueReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
@@ -37,19 +45,29 @@ type GithubIssueReconciler struct {
 // +kubebuilder:rbac:groups=github.shahaf.com,resources=githubissues/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=github.shahaf.com,resources=githubissues/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the GithubIssue object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
 func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	log := logf.FromContext(ctx)
 
-	// TODO(user): your logic here
+	var githubIssue githubv1alpha1.GithubIssue
+	if err := r.Get(ctx, req.NamespacedName, &githubIssue); err != nil {
+		return ctrl.Result{}, client.IgnoreAlreadyExists(err)
+	}
+
+	log.Info("Starting reconciliation", "githubissue", req.NamespacedName)
+
+	_, err := auth.GetGitHubToken()
+	if err != nil {
+		log.Error(err, "Failed to retrieve GitHub token", "githubissue", req.NamespacedName)
+		meta.SetStatusCondition(&githubIssue.Status.Conditions, metav1.Condition{
+			Type:    ConditionTypeReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  ReasonAuthenticationFailed,
+			Message: "GitHub token not available: " + err.Error(),
+		})
+		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
+	}
+
+	log.Info("Successfully retrieved GitHub token")
 
 	return ctrl.Result{}, nil
 }

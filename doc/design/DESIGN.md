@@ -9,7 +9,7 @@
 
 ## Components
 - **API**: [Spec Design](api/design/SPEC_DESIGN.md) | [Status Design](api/design/STATUS_DESIGN.md) → [Spec Implementation](api/implementation/SPEC_IMPLEMENTATION.md) | [Status Implementation](api/implementation/STATUS_IMPLEMENTATION.md)
-- **Auth**: [Auth Design](auth/design/AUTH_DESIGN.md) → [Secret Implementation](auth/implementation/SECRET_IMPLEMENTATION.md)
+- **Auth**: [Auth Design](auth/design/AUTH_DESIGN.md) → [Token Implementation](auth/implementation/TOKEN_IMPLEMENTATION.md)
 - **Controller**: [Controller Design](controller/design/CONTROLLER_DESIGN.md)
 - **GitHub**: [GitHub Design](github/design/GITHUB_DESIGN.md)
 - **Finalizer**: [Finalizer Design](finalizer/design/FINALIZER_DESIGN.md)
@@ -55,7 +55,7 @@ User Creates CR → Controller Reconciles → GitHub API → Status Updated
 - Environment variable token retrieval
 - Controller integration for GitHub API calls
 - **Design**: [Auth Design](auth/design/AUTH_DESIGN.md)
-- **Implementation**: [Secret Implementation](auth/implementation/SECRET_IMPLEMENTATION.md)
+- **Implementation**: [Token Implementation](auth/implementation/TOKEN_IMPLEMENTATION.md)
 
 ### Phase 3: GitHub Integration
 - GitHub client (list, create, update, close issues)
