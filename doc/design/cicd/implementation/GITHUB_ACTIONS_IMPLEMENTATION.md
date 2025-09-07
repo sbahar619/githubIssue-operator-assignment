@@ -87,7 +87,7 @@ jobs:
       run: make vet
 
     - name: Lint
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v7
       with:
         version: v2.4.0
 ```
