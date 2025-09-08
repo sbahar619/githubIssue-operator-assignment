@@ -86,5 +86,4 @@ User Creates CR → Controller Reconciles → GitHub API → Status Updated
 - ✅ Create/update/close GitHub issues from Kubernetes CRs
 - ✅ Conflict detection between multiple CRs
 - ✅ Proper status reporting and error handling
-- ✅ >90% test coverage with unit/integration/E2E tests
 - ✅ Production-ready deployment with Helm
