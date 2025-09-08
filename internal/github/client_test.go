@@ -24,9 +24,9 @@ func TestGitHub(t *testing.T) {
 }
 
 var _ = Describe("Repository URL Parsing", func() {
-	Describe("ParseRepositoryURL", func() {
+	Describe("parseRepositoryURL", func() {
 		It("should parse valid GitHub URL", func() {
-			repo, err := ParseRepositoryURL(repoURL)
+			repo, err := parseRepositoryURL(repoURL)
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(repo.Owner).To(Equal(owner))
@@ -34,7 +34,7 @@ var _ = Describe("Repository URL Parsing", func() {
 		})
 
 		It("should handle URL parsing errors", func() {
-			_, err := ParseRepositoryURL("://invalid-url")
+			_, err := parseRepositoryURL("://invalid-url")
 
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to parse URL"))
@@ -44,20 +44,20 @@ var _ = Describe("Repository URL Parsing", func() {
 
 var _ = Describe("GitHub Error", func() {
 	It("should classify server errors as retryable", func() {
-		err := NewGitHubError(500, "Internal Server Error")
+		err := newGitHubError(500, "Internal Server Error")
 
 		Expect(err.IsRetryable).To(BeTrue())
 		Expect(err.Error()).To(ContainSubstring("status 500"))
 	})
 
 	It("should classify rate limit as retryable", func() {
-		err := NewGitHubError(429, "Rate limit exceeded")
+		err := newGitHubError(429, "Rate limit exceeded")
 
 		Expect(err.IsRetryable).To(BeTrue())
 	})
 
 	It("should classify client errors as non-retryable", func() {
-		err := NewGitHubError(404, "Not Found")
+		err := newGitHubError(404, "Not Found")
 
 		Expect(err.IsRetryable).To(BeFalse())
 	})

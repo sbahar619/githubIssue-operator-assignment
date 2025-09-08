@@ -10,7 +10,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func ParseRepositoryURL(repoURL string) (*Repository, error) {
+func parseRepositoryURL(repoURL string) (*Repository, error) {
 	parsedURL, err := url.Parse(repoURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL: %w", err)
@@ -24,7 +24,7 @@ func ParseRepositoryURL(repoURL string) (*Repository, error) {
 	}, nil
 }
 
-func NewGitHubError(statusCode int, message string) *GitHubError {
+func newGitHubError(statusCode int, message string) *GitHubError {
 	isRetryable := statusCode >= 500 || statusCode == 429
 	return &GitHubError{
 		StatusCode:  statusCode,
@@ -34,7 +34,7 @@ func NewGitHubError(statusCode int, message string) *GitHubError {
 }
 
 func NewClient(token, repoURL string) (*Client, error) {
-	repo, err := ParseRepositoryURL(repoURL)
+	repo, err := parseRepositoryURL(repoURL)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (c *Client) handleError(err error) error {
 		if githubError.Message != "" {
 			errorMessage = githubError.Message
 		}
-		return NewGitHubError(githubError.Response.StatusCode, errorMessage)
+		return newGitHubError(githubError.Response.StatusCode, errorMessage)
 	}
 
 	return &GitHubError{
@@ -66,10 +66,12 @@ func (c *Client) handleError(err error) error {
 }
 
 func (c *Client) ListIssues(ctx context.Context) ([]*github.Issue, error) {
+	const defaultPerPage = 100
+
 	opts := &github.IssueListByRepoOptions{
 		State: IssueStateOpen,
 		ListOptions: github.ListOptions{
-			PerPage: 100,
+			PerPage: defaultPerPage,
 		},
 	}
 
@@ -106,7 +108,7 @@ func (c *Client) GetIssueByTitle(ctx context.Context, title string) (*github.Iss
 	return nil, nil
 }
 
-func (c *Client) CreateIssue(ctx context.Context, title, description string) (*github.Issue, error) {
+func newIssueRequest(title, description string) *github.IssueRequest {
 	issueRequest := &github.IssueRequest{
 		Title: &title,
 	}
@@ -114,6 +116,12 @@ func (c *Client) CreateIssue(ctx context.Context, title, description string) (*g
 	if description != "" {
 		issueRequest.Body = &description
 	}
+
+	return issueRequest
+}
+
+func (c *Client) CreateIssue(ctx context.Context, title, description string) (*github.Issue, error) {
+	issueRequest := newIssueRequest(title, description)
 
 	issue, _, err := c.client.Issues.Create(ctx, c.repo.Owner, c.repo.Name, issueRequest)
 	if err != nil {
@@ -124,13 +132,7 @@ func (c *Client) CreateIssue(ctx context.Context, title, description string) (*g
 }
 
 func (c *Client) UpdateIssue(ctx context.Context, issueNumber int, title, description string) (*github.Issue, error) {
-	issueRequest := &github.IssueRequest{
-		Title: &title,
-	}
-
-	if description != "" {
-		issueRequest.Body = &description
-	}
+	issueRequest := newIssueRequest(title, description)
 
 	issue, _, err := c.client.Issues.Edit(ctx, c.repo.Owner, c.repo.Name, issueNumber, issueRequest)
 	if err != nil {
