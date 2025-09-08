@@ -51,7 +51,7 @@ type GithubIssueReconciler struct {
 func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	githubIssue, err := r.fetchGithubIssue(ctx, req.NamespacedName)
+	githubIssue, err := r.getGithubIssue(ctx, req.NamespacedName)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -63,7 +63,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	log.Info("Starting reconciliation", "githubissue", req.NamespacedName)
 
-	githubClient, result := r.initializeGitHubClient(ctx, githubIssue)
+	githubClient, result := r.createGitHubClient(ctx, githubIssue)
 	if !result.IsZero() {
 		return result, nil
 	}
@@ -73,7 +73,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return r.updateSuccessStatus(ctx, githubIssue)
 }
 
-func (r *GithubIssueReconciler) fetchGithubIssue(ctx context.Context, namespacedName types.NamespacedName) (*githubv1alpha1.GithubIssue, error) {
+func (r *GithubIssueReconciler) getGithubIssue(ctx context.Context, namespacedName types.NamespacedName) (*githubv1alpha1.GithubIssue, error) {
 	var githubIssue githubv1alpha1.GithubIssue
 	if err := r.Get(ctx, namespacedName, &githubIssue); err != nil {
 		return nil, client.IgnoreNotFound(err)
@@ -81,7 +81,7 @@ func (r *GithubIssueReconciler) fetchGithubIssue(ctx context.Context, namespaced
 	return &githubIssue, nil
 }
 
-func (r *GithubIssueReconciler) initializeGitHubClient(ctx context.Context, githubIssue *githubv1alpha1.GithubIssue) (*github.Client, ctrl.Result) {
+func (r *GithubIssueReconciler) createGitHubClient(ctx context.Context, githubIssue *githubv1alpha1.GithubIssue) (*github.Client, ctrl.Result) {
 	log := logf.FromContext(ctx)
 
 	token, err := auth.GetGitHubToken()
