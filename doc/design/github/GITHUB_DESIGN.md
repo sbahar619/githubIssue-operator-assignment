@@ -11,11 +11,12 @@ Provide GitHub API integration for issue lifecycle management.
 - **Encapsulated operations** for single repository
 
 ## Core Operations
-1. **GetIssueByTitle** - Find issue by title using GitHub Search API
-2. **CreateIssue** - Create new issue with title/description
-3. **UpdateIssue** - Update existing issue title/description  
-4. **CloseIssue** - Close issue by setting state
-5. **HasPullRequest** - Check if issue has associated PR
+1. **NewClient** - Initialize GitHub client with token and repository URL
+2. **GetIssueByTitle** - Find issue by title using GitHub Search API
+3. **CreateIssue** - Create new issue with title/description
+4. **UpdateIssue** - Update existing issue title/description  
+5. **CloseIssue** - Close issue by setting state
+6. **HasPullRequest** - Check if issue has associated PR
 
 ## Error Handling
 - **Retryable**: 5xx server errors, 429 rate limit
