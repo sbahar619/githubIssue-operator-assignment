@@ -2,17 +2,14 @@
 
 > **Primary Navigation Hub**
 
-## Standards
-- [Coding Standards](../standards/CODING_STANDARDS.md)
-- [Testing Strategy](../standards/TESTING_STRATEGY.md) 
-- [CI/CD Requirements](../standards/CICD_REQUIREMENTS.md) → [GitHub Actions Implementation](cicd/implementation/GITHUB_ACTIONS_IMPLEMENTATION.md)
 
 ## Components
-- **API**: [Spec Design](api/design/SPEC_DESIGN.md) | [Status Design](api/design/STATUS_DESIGN.md) → [Spec Implementation](api/implementation/SPEC_IMPLEMENTATION.md) | [Status Implementation](api/implementation/STATUS_IMPLEMENTATION.md)
-- **Auth**: [Auth Design](auth/design/AUTH_DESIGN.md) → [Token Implementation](auth/implementation/TOKEN_IMPLEMENTATION.md)
-- **Controller**: [Controller Design](controller/design/CONTROLLER_DESIGN.md)
-- **GitHub**: [GitHub Design](github/design/GITHUB_DESIGN.md)
-- **Finalizer**: [Finalizer Design](finalizer/design/FINALIZER_DESIGN.md)
+- **API**: [Spec Design](api/SPEC_DESIGN.md) | [Status Design](api/STATUS_DESIGN.md)
+- **Auth**: [Auth Design](auth/AUTH_DESIGN.md)
+- **Controller**: [Controller Design](controller/CONTROLLER_DESIGN.md)
+- **GitHub**: [GitHub Design](github/GITHUB_DESIGN.md)
+- **Finalizer**: [Finalizer Design](finalizer/FINALIZER_DESIGN.md)
+- **Project**: [Coding Standards](../project/CODING_STANDARDS.md) | [Testing Strategy](../project/TESTING_STRATEGY.md) | [CI/CD Requirements](../project/CICD_REQUIREMENTS.md)
 
 ---
 
