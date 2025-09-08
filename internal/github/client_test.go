@@ -47,7 +47,7 @@ var _ = Describe("GitHub Error", func() {
 		err := newGitHubError(500, "Internal Server Error")
 
 		Expect(err.IsRetryable).To(BeTrue())
-		Expect(err.Error()).To(ContainSubstring("status 500"))
+		Expect(err.Error()).To(ContainSubstring("status code 500"))
 	})
 
 	It("should classify rate limit as retryable", func() {
@@ -101,12 +101,6 @@ var _ = Describe("GitHub Client Operations", func() {
 
 		mockedHTTPClient := mock.NewMockedHTTPClient(
 			mock.WithRequestMatch(
-				mock.GetReposIssuesByOwnerByRepo,
-				[]github.Issue{
-					{ID: github.Int64(1), Title: github.String(existingTitle), State: github.String(IssueStateOpen)},
-				},
-			),
-			mock.WithRequestMatch(
 				mock.PostReposIssuesByOwnerByRepo,
 				github.Issue{ID: github.Int64(2), Title: github.String(newTitle), State: github.String(IssueStateOpen)},
 			),
@@ -123,35 +117,72 @@ var _ = Describe("GitHub Client Operations", func() {
 		githubClient := github.NewClient(mockedHTTPClient)
 
 		client = &Client{
-			client: githubClient,
-			repo:   &Repository{Owner: owner, Name: repoName},
+			githubClient: githubClient,
+			repo:         &Repository{Owner: owner, Name: repoName},
 		}
 	})
 
-	Describe("ListIssues", func() {
-		It("should return list of issues", func() {
-			issues, err := client.ListIssues(ctx)
-
-			Expect(err).NotTo(HaveOccurred())
-			Expect(issues).To(HaveLen(1))
-			Expect(issues[0].GetTitle()).To(Equal(existingTitle))
-		})
-	})
 
 	Describe("GetIssueByTitle", func() {
-		It("should get existing issue", func() {
-			issue, err := client.GetIssueByTitle(ctx, existingTitle)
+		Context("when issue exists", func() {
+			var existingClient *Client
 
-			Expect(err).NotTo(HaveOccurred())
-			Expect(issue).NotTo(BeNil())
-			Expect(issue.GetTitle()).To(Equal(existingTitle))
+			BeforeEach(func() {
+				mockedHTTPClientExisting := mock.NewMockedHTTPClient(
+					mock.WithRequestMatch(
+						mock.GetSearchIssues,
+						github.IssuesSearchResult{
+							Total: github.Int(1),
+							Issues: []*github.Issue{
+								{ID: github.Int64(1), Title: github.String(existingTitle), State: github.String(IssueStateOpen)},
+							},
+						},
+					),
+				)
+
+				githubClientExisting := github.NewClient(mockedHTTPClientExisting)
+				existingClient = &Client{
+					githubClient: githubClientExisting,
+					repo:         &Repository{Owner: owner, Name: repoName},
+				}
+			})
+
+			It("should get existing issue", func() {
+				issue, err := existingClient.GetIssueByTitle(ctx, existingTitle)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(issue).NotTo(BeNil())
+				Expect(issue.GetTitle()).To(Equal(existingTitle))
+			})
 		})
 
-		It("should return nil for non-existing issue", func() {
-			issue, err := client.GetIssueByTitle(ctx, nonExistentTitle)
+		Context("when issue does not exist", func() {
+			var nonExistentClient *Client
 
-			Expect(err).NotTo(HaveOccurred())
-			Expect(issue).To(BeNil())
+			BeforeEach(func() {
+				mockedHTTPClientNonExistent := mock.NewMockedHTTPClient(
+					mock.WithRequestMatch(
+						mock.GetSearchIssues,
+						github.IssuesSearchResult{
+							Total:  github.Int(0),
+							Issues: []*github.Issue{},
+						},
+					),
+				)
+
+				githubClientNonExistent := github.NewClient(mockedHTTPClientNonExistent)
+				nonExistentClient = &Client{
+					githubClient: githubClientNonExistent,
+					repo:         &Repository{Owner: owner, Name: repoName},
+				}
+			})
+
+			It("should return nil for non-existing issue", func() {
+				issue, err := nonExistentClient.GetIssueByTitle(ctx, nonExistentTitle)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(issue).To(BeNil())
+			})
 		})
 	})
 
@@ -211,8 +242,8 @@ var _ = Describe("GitHub Client Operations", func() {
 
 			githubClientWithPR := github.NewClient(mockedHTTPClientWithPR)
 			clientWithPR := &Client{
-				client: githubClientWithPR,
-				repo:   &Repository{Owner: owner, Name: repoName},
+				githubClient: githubClientWithPR,
+				repo:         &Repository{Owner: owner, Name: repoName},
 			}
 
 			hasPR, err := clientWithPR.HasPullRequest(ctx, 2)

@@ -3,12 +3,54 @@ package github
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/google/go-github/v57/github"
 	"golang.org/x/oauth2"
 )
+
+const (
+	IssueStateOpen   = "open"
+	IssueStateClosed = "closed"
+)
+
+type Repository struct {
+	Owner string
+	Name  string
+}
+
+type GitHubError struct {
+	StatusCode  int
+	Message     string
+	IsRetryable bool
+}
+
+func (e *GitHubError) Error() string {
+	return fmt.Sprintf("github api error: status code %d: %s", e.StatusCode, e.Message)
+}
+
+type Client struct {
+	githubClient *github.Client
+	repo         *Repository
+}
+
+func NewClient(token, repoURL string) (*Client, error) {
+	repo, err := parseRepositoryURL(repoURL)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	httpClient := oauth2.NewClient(context.Background(), tokenSource)
+	githubClient := github.NewClient(httpClient)
+
+	return &Client{
+		githubClient: githubClient,
+		repo:         repo,
+	}, nil
+}
 
 func parseRepositoryURL(repoURL string) (*Repository, error) {
 	parsedURL, err := url.Parse(repoURL)
@@ -25,28 +67,12 @@ func parseRepositoryURL(repoURL string) (*Repository, error) {
 }
 
 func newGitHubError(statusCode int, message string) *GitHubError {
-	isRetryable := statusCode >= 500 || statusCode == 429
+	isRetryable := statusCode >= http.StatusInternalServerError || statusCode == http.StatusTooManyRequests
 	return &GitHubError{
 		StatusCode:  statusCode,
 		Message:     message,
 		IsRetryable: isRetryable,
 	}
-}
-
-func NewClient(token, repoURL string) (*Client, error) {
-	repo, err := parseRepositoryURL(repoURL)
-	if err != nil {
-		return nil, err
-	}
-
-	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	httpClient := oauth2.NewClient(context.Background(), tokenSource)
-	githubClient := github.NewClient(httpClient)
-
-	return &Client{
-		client: githubClient,
-		repo:   repo,
-	}, nil
 }
 
 func (c *Client) handleError(err error) error {
@@ -65,47 +91,22 @@ func (c *Client) handleError(err error) error {
 	}
 }
 
-func (c *Client) ListIssues(ctx context.Context) ([]*github.Issue, error) {
-	const defaultPerPage = 100
-
-	opts := &github.IssueListByRepoOptions{
-		State: IssueStateOpen,
-		ListOptions: github.ListOptions{
-			PerPage: defaultPerPage,
-		},
-	}
-
-	var allIssues []*github.Issue
-	for {
-		issues, resp, err := c.client.Issues.ListByRepo(ctx, c.repo.Owner, c.repo.Name, opts)
-		if err != nil {
-			return nil, c.handleError(err)
-		}
-
-		allIssues = append(allIssues, issues...)
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-
-	return allIssues, nil
-}
-
 func (c *Client) GetIssueByTitle(ctx context.Context, title string) (*github.Issue, error) {
-	allIssues, err := c.ListIssues(ctx)
+	query := fmt.Sprintf(`"%s" in:title repo:%s/%s is:issue is:open`, 
+		title, c.repo.Owner, c.repo.Name)
+	
+	result, _, err := c.githubClient.Search.Issues(ctx, query, &github.SearchOptions{
+		ListOptions: github.ListOptions{PerPage: 1},
+	})
 	if err != nil {
-		return nil, err
+		return nil, c.handleError(err)
 	}
-
-	for _, issue := range allIssues {
-		if issue.GetTitle() == title {
-			return issue, nil
-		}
+	
+	if len(result.Issues) == 0 {
+		return nil, nil
 	}
-
-	return nil, nil
+	
+	return result.Issues[0], nil
 }
 
 func newIssueRequest(title, description string) *github.IssueRequest {
@@ -123,7 +124,7 @@ func newIssueRequest(title, description string) *github.IssueRequest {
 func (c *Client) CreateIssue(ctx context.Context, title, description string) (*github.Issue, error) {
 	issueRequest := newIssueRequest(title, description)
 
-	issue, _, err := c.client.Issues.Create(ctx, c.repo.Owner, c.repo.Name, issueRequest)
+	issue, _, err := c.githubClient.Issues.Create(ctx, c.repo.Owner, c.repo.Name, issueRequest)
 	if err != nil {
 		return nil, c.handleError(err)
 	}
@@ -134,7 +135,7 @@ func (c *Client) CreateIssue(ctx context.Context, title, description string) (*g
 func (c *Client) UpdateIssue(ctx context.Context, issueNumber int, title, description string) (*github.Issue, error) {
 	issueRequest := newIssueRequest(title, description)
 
-	issue, _, err := c.client.Issues.Edit(ctx, c.repo.Owner, c.repo.Name, issueNumber, issueRequest)
+	issue, _, err := c.githubClient.Issues.Edit(ctx, c.repo.Owner, c.repo.Name, issueNumber, issueRequest)
 	if err != nil {
 		return nil, c.handleError(err)
 	}
@@ -148,7 +149,7 @@ func (c *Client) CloseIssue(ctx context.Context, issueNumber int) (*github.Issue
 		State: &state,
 	}
 
-	issue, _, err := c.client.Issues.Edit(ctx, c.repo.Owner, c.repo.Name, issueNumber, issueRequest)
+	issue, _, err := c.githubClient.Issues.Edit(ctx, c.repo.Owner, c.repo.Name, issueNumber, issueRequest)
 	if err != nil {
 		return nil, c.handleError(err)
 	}
@@ -157,7 +158,7 @@ func (c *Client) CloseIssue(ctx context.Context, issueNumber int) (*github.Issue
 }
 
 func (c *Client) HasPullRequest(ctx context.Context, issueNumber int) (bool, error) {
-	issue, _, err := c.client.Issues.Get(ctx, c.repo.Owner, c.repo.Name, issueNumber)
+	issue, _, err := c.githubClient.Issues.Get(ctx, c.repo.Owner, c.repo.Name, issueNumber)
 	if err != nil {
 		return false, c.handleError(err)
 	}

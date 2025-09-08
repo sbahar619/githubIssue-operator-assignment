@@ -42,9 +42,8 @@ internal/
 │   ├── githubissue_controller.go     # Main reconciliation logic
 │   └── githubissue_controller_test.go
 ├── github/
-│   ├── client.go                     # GitHub API operations
-│   ├── client_test.go
-│   └── types.go                      # GitHub-specific types
+│   ├── client.go                     # GitHub API operations and types
+│   └── client_test.go
 ├── auth/
 │   ├── token.go                      # Token retrieval logic
 │   └── token_test.go
