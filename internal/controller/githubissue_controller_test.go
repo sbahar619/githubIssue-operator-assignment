@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/runtime"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -77,7 +77,7 @@ var _ = Describe("GithubIssue Controller", func() {
 			Client: fakeClient,
 			Scheme: testScheme,
 		}
-		
+
 		testIssue = newTestGithubIssue(testIssueName, testNamespace, testRepoURL, testTitle)
 		Expect(fakeClient.Create(ctx, testIssue)).To(Succeed())
 	})
@@ -87,11 +87,11 @@ var _ = Describe("GithubIssue Controller", func() {
 			errorMessage := "token validation failed"
 			expectedMessage := "GitHub token not available: " + errorMessage
 			testError := errors.New(errorMessage)
-			
+
 			result := reconciler.handleAuthenticationError(ctx, testIssue, testError)
-			
+
 			Expect(result.RequeueAfter).To(Equal(defaultRequeueDelay))
-			
+
 			condition := getStatusCondition(testIssueName, testNamespace)
 			Expect(condition.Message).To(Equal(expectedMessage))
 		})
