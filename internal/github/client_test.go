@@ -122,7 +122,6 @@ var _ = Describe("GitHub Client Operations", func() {
 		}
 	})
 
-
 	Describe("GetIssueByTitle", func() {
 		Context("when issue exists", func() {
 			var existingClient *Client

@@ -92,20 +92,20 @@ func (c *Client) handleError(err error) error {
 }
 
 func (c *Client) GetIssueByTitle(ctx context.Context, title string) (*github.Issue, error) {
-	query := fmt.Sprintf(`"%s" in:title repo:%s/%s is:issue is:open`, 
+	query := fmt.Sprintf(`"%s" in:title repo:%s/%s is:issue is:open`,
 		title, c.repo.Owner, c.repo.Name)
-	
+
 	result, _, err := c.githubClient.Search.Issues(ctx, query, &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 1},
 	})
 	if err != nil {
 		return nil, c.handleError(err)
 	}
-	
+
 	if len(result.Issues) == 0 {
 		return nil, nil
 	}
-	
+
 	return result.Issues[0], nil
 }
 
