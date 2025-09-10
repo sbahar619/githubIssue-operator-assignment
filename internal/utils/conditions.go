@@ -19,7 +19,6 @@ const (
 	// Error Reasons
 	ReasonAuthenticationFailed = "AuthenticationFailed"
 	ReasonGitHubAPIError       = "GitHubAPIError"
-	ReasonUnexpectedError      = "UnexpectedError"
 
 	// Success Reasons
 	ReasonIssueCreated      = "IssueCreated"
@@ -32,11 +31,6 @@ func HandleTokenRetrievalError(ctx context.Context, k8sClient client.Client, git
 }
 
 func HandleGitHubAPIError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) bool {
-	handleUnexpectedError := func(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {
-		message := fmt.Sprintf("Unexpected error during GitHub lookup: %s", err.Error())
-		SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonUnexpectedError, message)
-	}
-
 	if githubError, ok := err.(*github.GitHubError); ok {
 		if githubError.IsRetryable {
 			handleRetryableGitHubError(ctx, k8sClient, githubIssue, githubError)
@@ -46,7 +40,8 @@ func HandleGitHubAPIError(ctx context.Context, k8sClient client.Client, githubIs
 		return true
 	}
 
-	handleUnexpectedError(ctx, k8sClient, githubIssue, err)
+	message := fmt.Sprintf("GitHub API error: %s", err.Error())
+	SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 	return false
 }
 
