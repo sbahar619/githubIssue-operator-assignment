@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	gogithub "github.com/google/go-github/v57/github"
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
@@ -37,6 +37,7 @@ import (
 type GithubIssueReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
 // +kubebuilder:rbac:groups=github.shahaf.com,resources=githubissues,verbs=get;list;watch;create;update;patch;delete
@@ -44,15 +45,14 @@ type GithubIssueReconciler struct {
 // +kubebuilder:rbac:groups=github.shahaf.com,resources=githubissues/finalizers,verbs=update
 
 func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
-	log.Info("Starting reconciliation", "githubissue", req.NamespacedName)
+	r.Log.Info("Starting reconciliation", "githubissue", req.NamespacedName)
 
 	var githubIssue githubv1alpha1.GithubIssue
 	if err := r.Get(ctx, req.NamespacedName, &githubIssue); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if githubIssue.Name == "" {
-		log.Info("Resource not found, skipping", "githubissue", req.NamespacedName)
+		r.Log.Info("Resource not found, skipping", "githubissue", req.NamespacedName)
 		return ctrl.Result{}, nil
 	}
 
@@ -61,21 +61,19 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		utils.HandleTokenRetrievalError(ctx, r.Client, &githubIssue, err)
 		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
 	}
-	log.Info("Successfully retrieved GitHub token")
+	r.Log.Info("Successfully retrieved GitHub token")
 
 	githubClient, err := github.NewClient(token, githubIssue.Spec.Repo)
 	if err != nil {
 		utils.HandleGitHubAPIError(ctx, r.Client, &githubIssue, err)
 		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
 	}
-	log.Info("Successfully created GitHub client", "repo", githubIssue.Spec.Repo)
+	r.Log.Info("Successfully created GitHub client", "repo", githubIssue.Spec.Repo)
 
 	return r.handleUpdateOrCreateIssue(ctx, githubClient, &githubIssue)
 }
 
 func (r *GithubIssueReconciler) handleUpdateOrCreateIssue(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
-
 	existingIssue, err := r.getIssueByTitle(ctx, githubClient, githubIssue)
 	if err != nil {
 		utils.HandleGitHubAPIError(ctx, r.Client, githubIssue, err)
@@ -83,37 +81,34 @@ func (r *GithubIssueReconciler) handleUpdateOrCreateIssue(ctx context.Context, g
 	}
 
 	if existingIssue != nil {
-		log.Info("Issue synchronization path: existing issue found")
+		r.Log.Info("Issue synchronization path: existing issue found")
 		return r.synchronizeExistingIssue(ctx, githubClient, githubIssue, existingIssue)
 	}
 
-	log.Info("Issue creation path: no existing issue found")
+	r.Log.Info("Issue creation path: no existing issue found")
 	return r.createNewIssue(ctx, githubClient, githubIssue)
 }
 
 func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue) (*gogithub.Issue, error) {
-	log := logf.FromContext(ctx)
-
 	existingIssue, err := githubClient.GetIssueByTitle(ctx, githubIssue.Spec.Title)
 	if err != nil {
 		return nil, err
 	}
 
 	if existingIssue != nil {
-		log.Info("Found existing GitHub issue",
+		r.Log.Info("Found existing GitHub issue",
 			"issueID", existingIssue.GetID(),
 			"issueNumber", existingIssue.GetNumber(),
 			"issueURL", existingIssue.GetHTMLURL())
 	} else {
-		log.Info("No existing GitHub issue found for title", "title", githubIssue.Spec.Title)
+		r.Log.Info("No existing GitHub issue found for title", "title", githubIssue.Spec.Title)
 	}
 
 	return existingIssue, nil
 }
 
 func (r *GithubIssueReconciler) synchronizeExistingIssue(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue, existingIssue *gogithub.Issue) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
-	log.Info("Synchronization logic not yet implemented", "issueID", existingIssue.GetID())
+	r.Log.Info("Synchronization logic not yet implemented", "issueID", existingIssue.GetID())
 
 	_ = githubClient // TODO: Will be used when synchronization logic is implemented
 
@@ -123,8 +118,7 @@ func (r *GithubIssueReconciler) synchronizeExistingIssue(ctx context.Context, gi
 }
 
 func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
-	log.Info("Issue creation logic not yet implemented")
+	r.Log.Info("Issue creation logic not yet implemented")
 
 	_ = githubClient // TODO: Will be used when issue creation logic is implemented
 
