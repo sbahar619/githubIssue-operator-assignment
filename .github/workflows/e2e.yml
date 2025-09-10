@@ -1,0 +1,61 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [ main, develop, github-issue-operator ]
+  push:
+    branches: [ main, develop, github-issue-operator ]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        cache: true
+        
+    - name: Create Kind cluster
+      uses: helm/kind-action@v1.8.0
+      with:
+        cluster_name: e2e-test
+        
+    - name: Build operator image
+      run: |
+        make docker-build IMG=test-operator:latest
+        
+    - name: Load image to Kind
+      run: |
+        kind load docker-image test-operator:latest --name e2e-test
+        
+    - name: Deploy operator
+      run: |
+        make deploy IMG=test-operator:latest
+      env:
+        GITHUB_TOKEN: ${{ secrets.E2E_GITHUB_TOKEN }}
+        
+    - name: Wait for operator deployment
+      run: |
+        kubectl wait --for=condition=available --timeout=300s deployment/github-issue-operator-controller-manager -n github-issue-operator-system
+        
+    - name: Run E2E tests
+      run: |
+        make test-e2e
+      env:
+        GITHUB_TOKEN: ${{ secrets.E2E_GITHUB_TOKEN }}
+        
+    - name: Debug on failure
+      if: failure()
+      run: |
+        echo "=== Pod status ==="
+        kubectl get pods -A
+        echo "=== Controller logs ==="
+        kubectl logs -n github-issue-operator-system deployment/github-issue-operator-controller-manager || true
+        echo "=== Events ==="
+        kubectl get events -A --sort-by='.lastTimestamp' || true
