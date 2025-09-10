@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,7 +31,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	appsv1 "k8s.io/api/apps/v1"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/auth"
@@ -39,42 +39,42 @@ import (
 
 const (
 	// Operator configuration
-	operatorNamespace          = "github-issue-operator-system"
-	deploymentName             = "github-issue-operator-controller-manager"
-	secretName                = "github-issue-operator-token-secret"
-	controllerContainerName   = "manager"
-	
+	operatorNamespace       = "github-issue-operator-system"
+	deploymentName          = "github-issue-operator-controller-manager"
+	secretName              = "github-issue-operator-token-secret"
+	controllerContainerName = "manager"
+
 	// Test configuration
-	githubRepoURL             = "https://github.com/sbahar619/githubIssue-operator-assignment"
-	invalidTokenValue         = "invalid-token-value"
-	timeout                   = time.Minute * 2
-	pollInterval              = time.Second * 5
+	githubRepoURL     = "https://github.com/sbahar619/githubIssue-operator-assignment"
+	invalidTokenValue = "invalid-token-value"
+	timeout           = time.Minute * 2
+	pollInterval      = time.Second * 5
 )
 
 var (
-	k8sClient   client.Client
-	clientset   *kubernetes.Clientset
-	ctx         context.Context
+	k8sClient client.Client
+	clientset *kubernetes.Clientset
+	ctx       context.Context
 )
 
 var _ = BeforeEach(func() {
 	if k8sClient == nil {
 		ctx = context.Background()
-		
+
 		config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 			clientcmd.NewDefaultClientConfigLoadingRules(),
 			&clientcmd.ConfigOverrides{},
 		).ClientConfig()
 		Expect(err).NotTo(HaveOccurred(), "Should build kubeconfig")
-		
+
 		clientset, err = kubernetes.NewForConfig(config)
 		Expect(err).NotTo(HaveOccurred(), "Should create clientset")
-		
+
 		scheme := runtime.NewScheme()
 		Expect(corev1.AddToScheme(scheme)).To(Succeed())
 		Expect(appsv1.AddToScheme(scheme)).To(Succeed())
 		Expect(githubv1alpha1.AddToScheme(scheme)).To(Succeed())
-		
+
 		k8sClient, err = client.New(config, client.Options{Scheme: scheme})
 		Expect(err).NotTo(HaveOccurred(), "Should create controller-runtime client")
 	}
@@ -84,10 +84,11 @@ var _ = Describe("GitHub Token Authentication", func() {
 	var (
 		crName    string
 		namespace string
+		timestamp int64
 	)
 
 	BeforeEach(func() {
-		timestamp := time.Now().Unix()
+		timestamp = time.Now().UnixNano()
 		crName = fmt.Sprintf("auth-%d", timestamp)
 		namespace = fmt.Sprintf("test-ns-%d", timestamp)
 
@@ -98,6 +99,35 @@ var _ = Describe("GitHub Token Authentication", func() {
 	AfterEach(func() {
 		By("Cleaning up test resources")
 		cleanupNamespace(namespace)
+
+		By("Ensuring controller is restored to valid configuration")
+		ensureControllerHealthy()
+	})
+
+	Context("Token Retrieval Error", func() {
+		It("should handle empty token gracefully", func() {
+			emptySecretName := fmt.Sprintf("github-issue-operator-secret-empty-%d", timestamp)
+
+			By("Creating secret with empty token")
+			createEmptyTokenSecret(emptySecretName)
+
+			By("Patching controller to use empty token secret")
+			patchControllerToUseSecret(emptySecretName)
+
+			By("Waiting for controller to restart")
+			waitForControllerReady()
+
+			By("Creating GithubIssue CR")
+			cr := createGithubIssue(crName, namespace)
+
+			By("Verifying token retrieval failure is handled")
+			Eventually(func() bool {
+				return hasTokenRetrievalFailure(cr)
+			}, timeout, pollInterval).Should(BeTrue())
+
+			By("Cleaning up empty token secret")
+			cleanupInvalidTokenSecret(emptySecretName)
+		})
 	})
 
 	Context("Invalid Token Authentication", func() {
@@ -105,9 +135,8 @@ var _ = Describe("GitHub Token Authentication", func() {
 			originalDeployment *appsv1.Deployment
 			invalidSecretName  string
 		)
-		
+
 		It("should handle invalid token gracefully", func() {
-			timestamp := time.Now().Unix()
 			invalidSecretName = fmt.Sprintf("github-issue-operator-secret-invalid-%d", timestamp)
 
 			By("Backing up original controller deployment")
@@ -117,7 +146,7 @@ var _ = Describe("GitHub Token Authentication", func() {
 			createInvalidTokenSecret(invalidSecretName)
 
 			By("Patching controller to use invalid token secret")
-			patchControllerToUseInvalidSecret(invalidSecretName)
+			patchControllerToUseSecret(invalidSecretName)
 
 			By("Waiting for controller to restart")
 			waitForControllerReady()
@@ -185,15 +214,30 @@ func createInvalidTokenSecret(secretName string) {
 			Namespace: operatorNamespace,
 		},
 		Type: corev1.SecretTypeOpaque,
-	StringData: map[string]string{
-		"token": invalidTokenValue,
-	},
+		StringData: map[string]string{
+			"token": invalidTokenValue,
+		},
 	}
-	
+
 	Expect(k8sClient.Create(ctx, secret)).To(Succeed())
 }
 
-func patchControllerToUseInvalidSecret(secretName string) {
+func createEmptyTokenSecret(secretName string) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: operatorNamespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+		StringData: map[string]string{
+			"token": "",
+		},
+	}
+
+	Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+}
+
+func patchControllerToUseSecret(secretName string) {
 	deployment := &appsv1.Deployment{}
 	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
 	Expect(k8sClient.Get(ctx, key, deployment)).To(Succeed())
@@ -218,11 +262,11 @@ func restoreControllerDeployment(original *appsv1.Deployment) {
 	if original == nil {
 		return
 	}
-	
+
 	current := &appsv1.Deployment{}
 	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
 	Expect(k8sClient.Get(ctx, key, current)).To(Succeed())
-	
+
 	current.Spec = original.Spec
 	Expect(k8sClient.Update(ctx, current)).To(Succeed())
 }
@@ -235,24 +279,23 @@ func cleanupInvalidTokenSecret(secretName string) {
 		},
 	}
 	_ = k8sClient.Delete(ctx, secret)
-	// Ignore errors - secret might already be deleted or not exist
 }
 
-func waitForControllerReady() {
-	Eventually(func() bool {
-		deployment := &appsv1.Deployment{}
-		key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
-		err := k8sClient.Get(ctx, key, deployment)
-		if err != nil {
-			return false
+func hasTokenRetrievalFailure(cr *githubv1alpha1.GithubIssue) bool {
+	key := types.NamespacedName{Name: cr.Name, Namespace: cr.Namespace}
+	err := k8sClient.Get(ctx, key, cr)
+	if err != nil {
+		return false
+	}
+
+	for _, condition := range cr.Status.Conditions {
+		if condition.Type == utils.ConditionTypeReady &&
+			condition.Status == metav1.ConditionFalse &&
+			condition.Reason == utils.ReasonAuthenticationFailed {
+			return true
 		}
-		return deployment.Status.ReadyReplicas == deployment.Status.Replicas && 
-			   deployment.Status.Replicas > 0 &&
-			   deployment.Status.UpdatedReplicas == deployment.Status.Replicas
-	}, time.Minute*3, time.Second*10).Should(BeTrue())
-	
-	// Give controller time to settle after restart
-	time.Sleep(time.Second * 10)
+	}
+	return false
 }
 
 func hasAuthenticationFailure(cr *githubv1alpha1.GithubIssue) bool {
@@ -261,14 +304,38 @@ func hasAuthenticationFailure(cr *githubv1alpha1.GithubIssue) bool {
 	if err != nil {
 		return false
 	}
-	
+
 	for _, condition := range cr.Status.Conditions {
 		if condition.Type == utils.ConditionTypeReady &&
 			condition.Status == metav1.ConditionFalse &&
-			(condition.Reason == utils.ReasonAuthenticationFailed || 
-			 condition.Reason == utils.ReasonGitHubAPIError) {
+			(condition.Reason == utils.ReasonAuthenticationFailed ||
+				condition.Reason == utils.ReasonGitHubAPIError) {
 			return true
 		}
 	}
 	return false
+}
+
+func ensureControllerHealthy() {
+	By("Restoring controller to use valid secret")
+	patchControllerToUseSecret(secretName)
+	waitForControllerReady()
+}
+
+func waitForControllerReady() {
+	Eventually(func() bool {
+		return isControllerReady()
+	}, time.Minute*3, time.Second*10).Should(BeTrue())
+}
+
+func isControllerReady() bool {
+	deployment := &appsv1.Deployment{}
+	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
+	err := k8sClient.Get(ctx, key, deployment)
+	if err != nil {
+		return false
+	}
+	return deployment.Status.ReadyReplicas == deployment.Status.Replicas &&
+		deployment.Status.Replicas > 0 &&
+		deployment.Status.UpdatedReplicas == deployment.Status.Replicas
 }

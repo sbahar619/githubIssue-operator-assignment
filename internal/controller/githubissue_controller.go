@@ -58,14 +58,14 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	token, err := auth.GetGitHubToken()
 	if err != nil {
-		utils.HandleGitHubClientError(ctx, r.Client, &githubIssue, utils.TokenRetrievalError, err)
+		utils.HandleTokenRetrievalError(ctx, r.Client, &githubIssue, err)
 		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
 	}
 	log.Info("Successfully retrieved GitHub token")
 
 	githubClient, err := github.NewClient(token, githubIssue.Spec.Repo)
 	if err != nil {
-		utils.HandleGitHubClientError(ctx, r.Client, &githubIssue, utils.ClientCreationError, err)
+		utils.HandleGitHubAPIError(ctx, r.Client, &githubIssue, err)
 		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
 	}
 	log.Info("Successfully created GitHub client", "repo", githubIssue.Spec.Repo)

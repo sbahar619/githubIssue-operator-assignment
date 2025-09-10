@@ -18,7 +18,6 @@ const (
 
 	// Error Reasons
 	ReasonAuthenticationFailed = "AuthenticationFailed"
-	ReasonClientError          = "ClientError"
 	ReasonGitHubAPIError       = "GitHubAPIError"
 	ReasonUnexpectedError      = "UnexpectedError"
 
@@ -27,30 +26,9 @@ const (
 	ReasonIssueSynchronized = "IssueSynchronized"
 )
 
-type GitHubClientErrorType int
-
-const (
-	TokenRetrievalError GitHubClientErrorType = iota
-	ClientCreationError
-)
-
-func HandleGitHubClientError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, errorType GitHubClientErrorType, err error) {
-	handleAuthenticationError := func(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {
-		message := fmt.Sprintf("GitHub token not available: %s", err.Error())
-		SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
-	}
-
-	handleClientCreationError := func(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {
-		message := fmt.Sprintf("Failed to create GitHub client: %s", err.Error())
-		SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonClientError, message)
-	}
-
-	switch errorType {
-	case TokenRetrievalError:
-		handleAuthenticationError(ctx, k8sClient, githubIssue, err)
-	case ClientCreationError:
-		handleClientCreationError(ctx, k8sClient, githubIssue, err)
-	}
+func HandleTokenRetrievalError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {
+	message := fmt.Sprintf("GitHub token not available: %s", err.Error())
+	SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
 }
 
 func HandleGitHubAPIError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) bool {
