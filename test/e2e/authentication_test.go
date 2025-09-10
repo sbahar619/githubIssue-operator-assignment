@@ -98,21 +98,22 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 	AfterEach(func() {
 		By("Cleaning up test resources")
-		cleanupNamespace(namespace)
+		deleteNamespace(namespace)
 
 		By("Ensuring controller is restored to valid configuration")
-		ensureControllerHealthy()
+		updateControllerSecret(secretName)
+		waitForControllerReady()
 	})
 
 	Context("Token Retrieval Error", func() {
 		It("should handle empty token gracefully", func() {
 			emptySecretName := fmt.Sprintf("github-issue-operator-secret-empty-%d", timestamp)
 
-			By("Creating secret with empty token")
-			createEmptyTokenSecret(emptySecretName)
+			By("Applying empty token secret")
+			createTokenSecret(emptySecretName, "")
 
-			By("Patching controller to use empty token secret")
-			patchControllerToUseSecret(emptySecretName)
+			By("Updating controller secret")
+			updateControllerSecret(emptySecretName)
 
 			By("Waiting for controller to restart")
 			waitForControllerReady()
@@ -122,31 +123,27 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Verifying token retrieval failure is handled")
 			Eventually(func() bool {
-				return hasTokenRetrievalFailure(cr)
+				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed)
 			}, timeout, pollInterval).Should(BeTrue())
 
 			By("Cleaning up empty token secret")
-			cleanupInvalidTokenSecret(emptySecretName)
+			deleteTokenSecret(emptySecretName)
 		})
 	})
 
 	Context("Invalid Token Authentication", func() {
 		var (
-			originalDeployment *appsv1.Deployment
-			invalidSecretName  string
+			invalidSecretName string
 		)
 
 		It("should handle invalid token gracefully", func() {
 			invalidSecretName = fmt.Sprintf("github-issue-operator-secret-invalid-%d", timestamp)
 
-			By("Backing up original controller deployment")
-			originalDeployment = backupControllerDeployment()
+			By("Applying invalid token secret")
+			createTokenSecret(invalidSecretName, invalidTokenValue)
 
-			By("Creating invalid token secret")
-			createInvalidTokenSecret(invalidSecretName)
-
-			By("Patching controller to use invalid token secret")
-			patchControllerToUseSecret(invalidSecretName)
+			By("Updating controller secret")
+			updateControllerSecret(invalidSecretName)
 
 			By("Waiting for controller to restart")
 			waitForControllerReady()
@@ -156,12 +153,12 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Verifying authentication failure is handled")
 			Eventually(func() bool {
-				return hasAuthenticationFailure(cr)
+				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed, utils.ReasonGitHubAPIError)
 			}, timeout, pollInterval).Should(BeTrue())
 
 			By("Restoring original controller configuration")
-			restoreControllerDeployment(originalDeployment)
-			cleanupInvalidTokenSecret(invalidSecretName)
+			updateControllerSecret(secretName)
+			deleteTokenSecret(invalidSecretName)
 			waitForControllerReady()
 		})
 	})
@@ -174,7 +171,7 @@ func createNamespace(name string) {
 	Expect(k8sClient.Create(ctx, ns)).To(Succeed())
 }
 
-func cleanupNamespace(name string) {
+func deleteNamespace(name string) {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 	}
@@ -200,14 +197,7 @@ func createGithubIssue(name, namespace string) *githubv1alpha1.GithubIssue {
 	return cr
 }
 
-func backupControllerDeployment() *appsv1.Deployment {
-	deployment := &appsv1.Deployment{}
-	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
-	Expect(k8sClient.Get(ctx, key, deployment)).To(Succeed())
-	return deployment.DeepCopy()
-}
-
-func createInvalidTokenSecret(secretName string) {
+func createTokenSecret(secretName, tokenValue string) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
@@ -215,63 +205,14 @@ func createInvalidTokenSecret(secretName string) {
 		},
 		Type: corev1.SecretTypeOpaque,
 		StringData: map[string]string{
-			"token": invalidTokenValue,
+			"token": tokenValue,
 		},
 	}
 
 	Expect(k8sClient.Create(ctx, secret)).To(Succeed())
 }
 
-func createEmptyTokenSecret(secretName string) {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: operatorNamespace,
-		},
-		Type: corev1.SecretTypeOpaque,
-		StringData: map[string]string{
-			"token": "",
-		},
-	}
-
-	Expect(k8sClient.Create(ctx, secret)).To(Succeed())
-}
-
-func patchControllerToUseSecret(secretName string) {
-	deployment := &appsv1.Deployment{}
-	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
-	Expect(k8sClient.Get(ctx, key, deployment)).To(Succeed())
-
-	for i := range deployment.Spec.Template.Spec.Containers {
-		container := &deployment.Spec.Template.Spec.Containers[i]
-		if container.Name == controllerContainerName {
-			for j := range container.Env {
-				if container.Env[j].Name == auth.GitHubTokenEnvVar {
-					container.Env[j].ValueFrom.SecretKeyRef.Name = secretName
-					break
-				}
-			}
-			break
-		}
-	}
-
-	Expect(k8sClient.Update(ctx, deployment)).To(Succeed())
-}
-
-func restoreControllerDeployment(original *appsv1.Deployment) {
-	if original == nil {
-		return
-	}
-
-	current := &appsv1.Deployment{}
-	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
-	Expect(k8sClient.Get(ctx, key, current)).To(Succeed())
-
-	current.Spec = original.Spec
-	Expect(k8sClient.Update(ctx, current)).To(Succeed())
-}
-
-func cleanupInvalidTokenSecret(secretName string) {
+func deleteTokenSecret(secretName string) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
@@ -281,7 +222,33 @@ func cleanupInvalidTokenSecret(secretName string) {
 	_ = k8sClient.Delete(ctx, secret)
 }
 
-func hasTokenRetrievalFailure(cr *githubv1alpha1.GithubIssue) bool {
+func updateControllerSecret(secretName string) {
+	Eventually(func() error {
+		deployment := &appsv1.Deployment{}
+		key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
+		err := k8sClient.Get(ctx, key, deployment)
+		if err != nil {
+			return err
+		}
+
+		for i := range deployment.Spec.Template.Spec.Containers {
+			container := &deployment.Spec.Template.Spec.Containers[i]
+			if container.Name == controllerContainerName {
+				for j := range container.Env {
+					if container.Env[j].Name == auth.GitHubTokenEnvVar {
+						container.Env[j].ValueFrom.SecretKeyRef.Name = secretName
+						break
+					}
+				}
+				break
+			}
+		}
+
+		return k8sClient.Update(ctx, deployment)
+	}, time.Second*30, time.Second*2).Should(Succeed())
+}
+
+func hasConditionWithReason(cr *githubv1alpha1.GithubIssue, reasons ...string) bool {
 	key := types.NamespacedName{Name: cr.Name, Namespace: cr.Namespace}
 	err := k8sClient.Get(ctx, key, cr)
 	if err != nil {
@@ -289,37 +256,15 @@ func hasTokenRetrievalFailure(cr *githubv1alpha1.GithubIssue) bool {
 	}
 
 	for _, condition := range cr.Status.Conditions {
-		if condition.Type == utils.ConditionTypeReady &&
-			condition.Status == metav1.ConditionFalse &&
-			condition.Reason == utils.ReasonAuthenticationFailed {
-			return true
+		if condition.Type == utils.ConditionTypeReady && condition.Status == metav1.ConditionFalse {
+			for _, reason := range reasons {
+				if condition.Reason == reason {
+					return true
+				}
+			}
 		}
 	}
 	return false
-}
-
-func hasAuthenticationFailure(cr *githubv1alpha1.GithubIssue) bool {
-	key := types.NamespacedName{Name: cr.Name, Namespace: cr.Namespace}
-	err := k8sClient.Get(ctx, key, cr)
-	if err != nil {
-		return false
-	}
-
-	for _, condition := range cr.Status.Conditions {
-		if condition.Type == utils.ConditionTypeReady &&
-			condition.Status == metav1.ConditionFalse &&
-			(condition.Reason == utils.ReasonAuthenticationFailed ||
-				condition.Reason == utils.ReasonGitHubAPIError) {
-			return true
-		}
-	}
-	return false
-}
-
-func ensureControllerHealthy() {
-	By("Restoring controller to use valid secret")
-	patchControllerToUseSecret(secretName)
-	waitForControllerReady()
 }
 
 func waitForControllerReady() {
