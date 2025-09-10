@@ -20,35 +20,44 @@ jobs:
       with:
         go-version: '1.21'
         cache: true
+        cache-dependency-path: go.sum
         
     - name: Create Kind cluster
       uses: helm/kind-action@v1.8.0
       with:
         cluster_name: e2e-test
+        install_only: true
         
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      
     - name: Build operator image
       run: |
-        make docker-build IMG=test-operator:latest
+        make docker-build IMG=localhost/test-operator:latest
         
     - name: Load image to Kind
       run: |
-        kind load docker-image test-operator:latest --name e2e-test
+        kind load docker-image localhost/test-operator:latest --name e2e-test
         
-    - name: Deploy operator
+    - name: Deploy operator with Helm
       run: |
-        make deploy IMG=test-operator:latest
+        echo "Deploying operator with Helm..."
+        echo "GitHub token configured: $([ -n "$GITHUB_TOKEN" ] && echo 'YES' || echo 'NO')"
+        
+        helm install github-issue-operator ./charts/github-issue-operator \
+          --values ./charts/github-issue-operator/values-e2e.yaml \
+          --set github.token="$GITHUB_TOKEN" \
+          --wait --timeout=120s
+        
+        echo "=== Deployment completed, checking resources ==="
+        kubectl get all -n github-issue-operator-system
       env:
         GITHUB_TOKEN: ${{ secrets.E2E_GITHUB_TOKEN }}
         
-    - name: Wait for operator deployment
-      run: |
-        kubectl wait --for=condition=available --timeout=300s deployment/github-issue-operator-controller-manager -n github-issue-operator-system
         
     - name: Run E2E tests
       run: |
         make test-e2e
-      env:
-        GITHUB_TOKEN: ${{ secrets.E2E_GITHUB_TOKEN }}
         
     - name: Debug on failure
       if: failure()
