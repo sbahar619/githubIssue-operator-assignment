@@ -7,3 +7,4 @@ metadata:
     app.kubernetes.io/name: {{ include "github-issue-operator.name" . }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     {{- include "github-issue-operator.labels" . | nindent 4 }}
+
