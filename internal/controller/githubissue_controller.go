@@ -106,10 +106,34 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 			utils.ReasonUpdateRequired,
 			fmt.Sprintf("Issue #%d content differs from desired state, update required", *githubIssue.Status.IssueID))
 
-		// TODO: Implement actual update logic in next phase
-		// For now, just indicate update is needed
-		_ = githubClient // TODO: Will be used when synchronization logic is implemented
-		return fmt.Errorf("update required but not yet implemented")
+		description := ""
+		if githubIssue.Spec.Description != nil {
+			description = *githubIssue.Spec.Description
+		}
+		updatedIssue, err := githubClient.UpdateIssue(ctx, *existingIssue.Number, githubIssue.Spec.Title, description)
+		if err != nil {
+			utils.SetCondition(ctx, r.Client, githubIssue,
+				metav1.ConditionFalse,
+				utils.ReasonGitHubAPIError,
+				fmt.Sprintf("Failed to update issue #%d: %s", *githubIssue.Status.IssueID, err.Error()))
+			return err
+		}
+
+		if err := r.updateStatusFromGitHub(githubIssue, updatedIssue); err != nil {
+			utils.SetCondition(ctx, r.Client, githubIssue,
+				metav1.ConditionFalse,
+				utils.ReasonGitHubAPIError,
+				fmt.Sprintf("Failed to update status after issue update: %s", err.Error()))
+			return err
+		}
+
+		utils.SetCondition(ctx, r.Client, githubIssue,
+			metav1.ConditionTrue,
+			utils.ReasonIssueSynchronized,
+			fmt.Sprintf("Issue #%d updated and synchronized successfully", *githubIssue.Status.IssueID))
+
+		log.Info("Issue updated successfully", "issueID", *githubIssue.Status.IssueID)
+		return nil
 	}
 
 	// No update needed, mark as synchronized
@@ -154,6 +178,7 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 	return existingIssue, nil
 }
 
+//nolint:unparam // Function always returns nil during stub phase, will be implemented later
 func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue) error {
 	log := logf.FromContext(ctx)
 	log.Info("Issue creation not implemented", "phase", "stub")
