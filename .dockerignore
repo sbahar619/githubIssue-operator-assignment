@@ -1,12 +1,10 @@
 # Git
 .git
 .gitignore
-.gitattributes
 
 # Documentation
 *.md
 doc/
-docs/
 
 # CI/CD
 .github/
@@ -27,32 +25,17 @@ test/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS generated files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
 # Temporary files
 *.tmp
-*.temp
 *.log
 
-# Charts and config (not needed for binary build)
-charts/
+# Non-essential for binary build
+helm/
 config/
-hack/
-
-# Project files
 PROJECT
 Makefile
-ghi.yaml
-
-# Docker files
-Dockerfile*
-.dockerignore

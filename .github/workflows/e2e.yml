@@ -49,6 +49,8 @@ jobs:
         cache-from: type=gha,scope=operator
         cache-to: type=gha,scope=operator,mode=max
         platforms: linux/amd64
+        provenance: false
+        sbom: false
         
     - name: Load image to kind
       run: |
