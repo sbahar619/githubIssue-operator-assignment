@@ -74,8 +74,8 @@ jobs:
         
     - name: Deploy operator
       run: |
-        helm install github-issue-operator ./charts/github-issue-operator \
-          --values ./charts/github-issue-operator/values-e2e.yaml \
+        helm install github-issue-operator ./helm \
+          --values ./helm/values-e2e.yaml \
           --set github.token="$GITHUB_TOKEN" \
           --wait --timeout=120s
       env:
