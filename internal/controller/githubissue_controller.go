@@ -26,6 +26,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	gogithub "github.com/google/go-github/v57/github"
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
@@ -211,6 +212,7 @@ func (r *GithubIssueReconciler) isUpdateNeeded(githubIssue *githubv1alpha1.Githu
 func (r *GithubIssueReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&githubv1alpha1.GithubIssue{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Named("githubissue").
 		Complete(r)
 }

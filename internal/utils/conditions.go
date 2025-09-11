@@ -30,6 +30,7 @@ const (
 )
 
 func HandleTokenRetrievalError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {
+	clearGithubStatus(githubIssue)
 	message := fmt.Sprintf("GitHub token not available: %s", err.Error())
 	SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
 }
@@ -57,6 +58,15 @@ func handleRetryableGitHubError(ctx context.Context, k8sClient client.Client, gi
 func handleNonRetryableGitHubError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, githubError *github.GitHubError) {
 	message := fmt.Sprintf("GitHub API error: %s", githubError.Message)
 	SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonGitHubAPIError, message)
+}
+
+// clearGithubStatus clears all GitHub-related status fields
+func clearGithubStatus(githubIssue *githubv1alpha1.GithubIssue) {
+	githubIssue.Status.IssueID = nil
+	githubIssue.Status.URL = nil
+	githubIssue.Status.State = nil
+	githubIssue.Status.LastSyncTime = nil
+	githubIssue.Status.HasPullRequest = nil
 }
 
 func SetCondition(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, status metav1.ConditionStatus, reason, message string) {
