@@ -47,6 +47,7 @@ jobs:
         tags: localhost/test-operator:latest
         load: true
         cache-from: type=gha,scope=operator
+        cache-to: type=gha,scope=operator,mode=max
         platforms: linux/amd64
         
     - name: Load image to kind
