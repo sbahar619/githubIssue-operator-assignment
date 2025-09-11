@@ -19,12 +19,14 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -248,16 +250,12 @@ func hasConditionWithReason(cr *githubv1alpha1.GithubIssue, reasons ...string) b
 		return false
 	}
 
-	for _, condition := range cr.Status.Conditions {
-		if condition.Type == utils.ConditionTypeReady && condition.Status == metav1.ConditionFalse {
-			for _, reason := range reasons {
-				if condition.Reason == reason {
-					return true
-				}
-			}
-		}
+	condition := meta.FindStatusCondition(cr.Status.Conditions, utils.ConditionTypeReady)
+	if condition == nil || condition.Status != metav1.ConditionFalse {
+		return false
 	}
-	return false
+
+	return slices.Contains(reasons, condition.Reason)
 }
 
 func waitForControllerReady() {
@@ -271,7 +269,5 @@ func isControllerReady() bool {
 	if err != nil {
 		return false
 	}
-	return deployment.Status.ReadyReplicas == deployment.Status.Replicas &&
-		deployment.Status.Replicas > 0 &&
-		deployment.Status.UpdatedReplicas == deployment.Status.Replicas
+	return deployment.Status.ReadyReplicas == *deployment.Spec.Replicas
 }
