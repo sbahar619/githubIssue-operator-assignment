@@ -3,12 +3,8 @@ kind: ClusterRoleBinding
 metadata:
   name: metrics-auth-rolebinding
   labels:
-    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
     app.kubernetes.io/name: {{ .Chart.Name }}
-    control-plane: controller-manager
-    {{- if .Chart.AppVersion }}
-    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-    {{- end }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -17,4 +13,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ .Chart.Name }}-controller-manager
-  namespace: {{ .Chart.Name }}-system
+  namespace: {{ .Release.Namespace }}

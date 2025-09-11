@@ -2,28 +2,22 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Chart.Name }}-controller-manager
-  namespace: {{ .Chart.Name }}-system
+  namespace: {{ .Release.Namespace }}
   labels:
-    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
     app.kubernetes.io/name: {{ .Chart.Name }}
-    control-plane: controller-manager
-    {{- if .Chart.AppVersion }}
-    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-    {{- end }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}
-      control-plane: controller-manager
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
         app.kubernetes.io/name: {{ .Chart.Name }}
-        control-plane: controller-manager
     spec:
       serviceAccountName: {{ .Chart.Name }}-controller-manager
       securityContext:

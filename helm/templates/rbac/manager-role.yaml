@@ -4,12 +4,8 @@ kind: ClusterRole
 metadata:
   name: {{ .Chart.Name }}-manager-role
   labels:
-    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
     app.kubernetes.io/name: {{ .Chart.Name }}
-    control-plane: controller-manager
-    {{- if .Chart.AppVersion }}
-    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-    {{- end }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 rules:
 - apiGroups:

@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/auth"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 )
 
@@ -222,27 +221,21 @@ func deleteTokenSecret(secretName string) {
 	_ = k8sClient.Delete(ctx, secret)
 }
 
+func getOperatorDeployment() (*appsv1.Deployment, error) {
+	deployment := &appsv1.Deployment{}
+	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
+	err := k8sClient.Get(ctx, key, deployment)
+	return deployment, err
+}
+
 func updateControllerSecret(secretName string) {
 	Eventually(func() error {
-		deployment := &appsv1.Deployment{}
-		key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
-		err := k8sClient.Get(ctx, key, deployment)
+		deployment, err := getOperatorDeployment()
 		if err != nil {
 			return err
 		}
 
-		for i := range deployment.Spec.Template.Spec.Containers {
-			container := &deployment.Spec.Template.Spec.Containers[i]
-			if container.Name == controllerContainerName {
-				for j := range container.Env {
-					if container.Env[j].Name == auth.GitHubTokenEnvVar {
-						container.Env[j].ValueFrom.SecretKeyRef.Name = secretName
-						break
-					}
-				}
-				break
-			}
-		}
+		deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name = secretName
 
 		return k8sClient.Update(ctx, deployment)
 	}, time.Second*30, time.Second*2).Should(Succeed())
@@ -274,9 +267,7 @@ func waitForControllerReady() {
 }
 
 func isControllerReady() bool {
-	deployment := &appsv1.Deployment{}
-	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
-	err := k8sClient.Get(ctx, key, deployment)
+	deployment, err := getOperatorDeployment()
 	if err != nil {
 		return false
 	}
