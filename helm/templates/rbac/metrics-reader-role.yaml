@@ -3,7 +3,13 @@ kind: ClusterRole
 metadata:
   name: metrics-reader
   labels:
-    {{- include "github-issue-operator.labels" . | nindent 4 }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    control-plane: controller-manager
+    {{- if .Chart.AppVersion }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    {{- end }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 rules:
 - nonResourceURLs:
   - "/metrics"

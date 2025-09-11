@@ -2,13 +2,19 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
-    {{- include "github-issue-operator.labels" . | nindent 4 }}
-  name: {{ include "github-issue-operator.name" . }}-manager-rolebinding
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    control-plane: controller-manager
+    {{- if .Chart.AppVersion }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    {{- end }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  name: {{ .Chart.Name }}-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "github-issue-operator.name" . }}-manager-role
+  name: {{ .Chart.Name }}-manager-role
 subjects:
 - kind: ServiceAccount
-  name: {{ include "github-issue-operator.serviceAccountName" . }}
-  namespace: {{ include "github-issue-operator.namespace" . }}
+  name: {{ .Chart.Name }}-controller-manager
+  namespace: {{ .Chart.Name }}-system
