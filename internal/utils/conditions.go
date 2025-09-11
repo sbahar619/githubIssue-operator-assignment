@@ -16,13 +16,17 @@ const (
 	// Condition Types
 	ConditionTypeReady = "Ready"
 
-	// Error Reasons
-	ReasonAuthenticationFailed = "AuthenticationFailed"
-	ReasonGitHubAPIError       = "GitHubAPIError"
-
 	// Success Reasons
 	ReasonIssueCreated      = "IssueCreated"
 	ReasonIssueSynchronized = "IssueSynchronized"
+
+	// Intermediate Reasons
+	ReasonIssueFound     = "IssueFound"
+	ReasonUpdateRequired = "UpdateRequired"
+
+	// Error Reasons
+	ReasonAuthenticationFailed = "AuthenticationFailed"
+	ReasonGitHubAPIError       = "GitHubAPIError"
 )
 
 func HandleTokenRetrievalError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {

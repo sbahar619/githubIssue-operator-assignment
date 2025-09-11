@@ -100,10 +100,21 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 	}
 
 	if existingIssue != nil {
-		log.Info("Found existing GitHub issue",
-			"issueID", existingIssue.GetID(),
-			"issueNumber", existingIssue.GetNumber(),
-			"issueURL", existingIssue.GetHTMLURL())
+
+		if err := r.updateStatusFromGitHub(githubIssue, existingIssue); err != nil {
+			log.Error(err, "Failed to update status from GitHub issue")
+			return nil, fmt.Errorf("status update failed: %w", err)
+		}
+
+		utils.SetCondition(ctx, r.Client, githubIssue,
+			metav1.ConditionFalse,
+			utils.ReasonIssueFound,
+			fmt.Sprintf("Found existing issue #%d, checking if update is needed", *githubIssue.Status.IssueID))
+
+		log.Info("Found existing GitHub issue and updated status",
+			"issueNumber", *githubIssue.Status.IssueID,
+			"issueURL", *githubIssue.Status.URL,
+			"issueState", *githubIssue.Status.State)
 	} else {
 		log.Info("No existing GitHub issue found for title", "title", githubIssue.Spec.Title)
 	}
@@ -113,13 +124,31 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 
 func (r *GithubIssueReconciler) synchronizeExistingIssue(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue, existingIssue *gogithub.Issue) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
-	log.Info("Synchronization logic not yet implemented", "issueID", existingIssue.GetID())
 
-	_ = githubClient // TODO: Will be used when synchronization logic is implemented
+	if updateNeeded := r.isUpdateNeeded(githubIssue, existingIssue); updateNeeded {
+		log.Info("Issue content differs from desired state, update required",
+			"issueNumber", *githubIssue.Status.IssueID)
 
-	details := fmt.Sprintf("GitHub issue #%d synchronized successfully", existingIssue.GetNumber())
-	utils.SetCondition(ctx, r.Client, githubIssue, metav1.ConditionTrue, utils.ReasonIssueSynchronized, details)
-	return ctrl.Result{}, nil
+		utils.SetCondition(ctx, r.Client, githubIssue,
+			metav1.ConditionFalse,
+			utils.ReasonUpdateRequired,
+			fmt.Sprintf("Issue #%d content differs from desired state, update required", *githubIssue.Status.IssueID))
+
+		// TODO: Implement actual update logic in next phase
+		// For now, just indicate update is needed
+		_ = githubClient // TODO: Will be used when synchronization logic is implemented
+		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
+	} else {
+		log.Info("Issue content matches desired state",
+			"issueNumber", *githubIssue.Status.IssueID)
+
+		utils.SetCondition(ctx, r.Client, githubIssue,
+			metav1.ConditionTrue,
+			utils.ReasonIssueSynchronized,
+			fmt.Sprintf("Issue #%d content matches desired state", *githubIssue.Status.IssueID))
+
+		return ctrl.Result{}, nil
+	}
 }
 
 func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue) (ctrl.Result, error) {
@@ -131,6 +160,51 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient
 	details := "GitHub issue created successfully (placeholder implementation)"
 	utils.SetCondition(ctx, r.Client, githubIssue, metav1.ConditionTrue, utils.ReasonIssueCreated, details)
 	return ctrl.Result{}, nil
+}
+
+func (r *GithubIssueReconciler) updateStatusFromGitHub(githubIssue *githubv1alpha1.GithubIssue, issue *gogithub.Issue) error {
+	issueNumber := issue.GetNumber()
+	if issueNumber == 0 {
+		return fmt.Errorf("GitHub issue has invalid number: %d", issueNumber)
+	}
+
+	url := issue.GetHTMLURL()
+	if url == "" {
+		return fmt.Errorf("GitHub issue has empty URL")
+	}
+
+	state := issue.GetState()
+	if state == "" {
+		return fmt.Errorf("GitHub issue has empty state")
+	}
+
+	githubIssue.Status.IssueID = &issueNumber
+	githubIssue.Status.URL = &url
+	githubIssue.Status.State = &state
+
+	now := metav1.Now()
+	githubIssue.Status.LastSyncTime = &now
+
+	hasPR := issue.PullRequestLinks != nil
+	githubIssue.Status.HasPullRequest = &hasPR
+
+	return nil
+}
+
+func (r *GithubIssueReconciler) isUpdateNeeded(githubIssue *githubv1alpha1.GithubIssue, issue *gogithub.Issue) bool {
+	if githubIssue.Spec.Title != issue.GetTitle() {
+		return true
+	}
+
+	specDesc := ""
+	if githubIssue.Spec.Description != nil {
+		specDesc = *githubIssue.Spec.Description
+	}
+	githubDesc := ""
+	if issue.Body != nil {
+		githubDesc = *issue.Body
+	}
+	return specDesc != githubDesc
 }
 
 // SetupWithManager sets up the controller with the Manager.
