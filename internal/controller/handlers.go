@@ -8,7 +8,6 @@ import (
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
@@ -43,8 +42,6 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 }
 
 func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
-	log := logf.FromContext(ctx)
-
 	if cr.Status.IssueID != nil {
 		githubClient, err := r.newGitHubClient(ctx, cr)
 		if err != nil {
