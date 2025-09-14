@@ -60,11 +60,15 @@ func extractCROwnerFromLabels(labels []string) string {
 	for _, label := range labels {
 		if strings.HasPrefix(label, prefix) {
 			ownerPart := strings.TrimPrefix(label, prefix)
-			parts := strings.Split(ownerPart, "-")
-			if len(parts) >= 2 {
-				return strings.Join(parts[:len(parts)-1], "-") + "/" + parts[len(parts)-1]
+
+			dotIndex := strings.Index(ownerPart, ".")
+			if dotIndex == -1 {
+				return ownerPart
 			}
-			return ownerPart
+
+			namespace := ownerPart[:dotIndex]
+			name := ownerPart[dotIndex+1:]
+			return namespace + "/" + name
 		}
 	}
 	return ""

@@ -86,9 +86,8 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient
 
 	labels := []string{
 		OperatorManagedLabel,
-		fmt.Sprintf("owner-%s-%s", cr.Namespace, cr.Name),
+		fmt.Sprintf("owner-%s.%s", cr.Namespace, cr.Name),
 	}
-	// Add labels (non-critical operation)
 	_ = githubClient.AddLabelsToIssue(ctx, createdIssue.GetNumber(), labels)
 
 	if err := r.updateStatusFromGitHub(cr, createdIssue); err != nil {
@@ -121,9 +120,8 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 
 	labels := []string{
 		OperatorManagedLabel,
-		fmt.Sprintf("owner-%s-%s", cr.Namespace, cr.Name),
+		fmt.Sprintf("owner-%s.%s", cr.Namespace, cr.Name),
 	}
-	// Add ownership labels (non-critical operation)
 	_ = githubClient.AddLabelsToIssue(ctx, existingIssue.GetNumber(), labels)
 
 	if updateNeeded := r.isUpdateNeeded(cr, existingIssue); updateNeeded {
@@ -199,8 +197,7 @@ func (r *GithubIssueReconciler) cleanupGitHubIssue(ctx context.Context, githubCl
 		return err
 	}
 
-	ownershipLabel := fmt.Sprintf("owner-%s-%s", cr.Namespace, cr.Name)
-	// Remove ownership label (non-critical operation during cleanup)
+	ownershipLabel := fmt.Sprintf("owner-%s.%s", cr.Namespace, cr.Name)
 	_ = githubClient.RemoveLabelFromIssue(ctx, *cr.Status.IssueID, ownershipLabel)
 
 	log.Info("GitHub issue closed", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
