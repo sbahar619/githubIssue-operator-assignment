@@ -65,19 +65,25 @@ func isControllerReady() bool {
 	return deployment.Status.ReadyReplicas == *deployment.Spec.Replicas
 }
 
-func hasConditionWithReason(cr *githubv1alpha1.GithubIssue, reasons ...string) bool {
+func hasConditionWithStatus(
+	cr *githubv1alpha1.GithubIssue,
+	expectedStatus metav1.ConditionStatus,
+	reasons ...string,
+) bool {
+	condition := getReadyCondition(cr)
+	return condition != nil &&
+		condition.Status == expectedStatus &&
+		slices.Contains(reasons, condition.Reason)
+}
+
+func getReadyCondition(cr *githubv1alpha1.GithubIssue) *metav1.Condition {
 	key := types.NamespacedName{Name: cr.Name, Namespace: cr.Namespace}
 	err := k8sClient.Get(ctx, key, cr)
 	if err != nil {
-		return false
+		return nil
 	}
 
-	condition := meta.FindStatusCondition(cr.Status.Conditions, "Ready")
-	if condition == nil {
-		return false
-	}
-
-	return slices.Contains(reasons, condition.Reason)
+	return meta.FindStatusCondition(cr.Status.Conditions, "Ready")
 }
 
 func newGithubIssue(name, namespace, title string, description *string) *githubv1alpha1.GithubIssue {
@@ -92,12 +98,6 @@ func newGithubIssue(name, namespace, title string, description *string) *githubv
 			Repo:        githubRepoURL,
 		},
 	}
-}
-
-func verifyStatusFieldsPopulated(githubIssue *githubv1alpha1.GithubIssue) {
-	Expect(githubIssue.Status.IssueID).NotTo(BeNil())
-	Expect(githubIssue.Status.URL).NotTo(BeNil())
-	Expect(githubIssue.Status.LastSyncTime).NotTo(BeNil())
 }
 
 func createGithubIssue(name, namespace string) *githubv1alpha1.GithubIssue {

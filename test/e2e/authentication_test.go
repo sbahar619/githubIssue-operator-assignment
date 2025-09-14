@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -92,6 +93,10 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Applying empty token secret")
 			createTokenSecret(emptySecretName, "")
+			DeferCleanup(func() {
+				By("Cleaning up empty token secret")
+				deleteTokenSecret(emptySecretName)
+			})
 
 			By("Updating controller secret")
 			updateControllerSecret(emptySecretName)
@@ -104,11 +109,8 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Verifying token retrieval failure is handled")
 			Eventually(func() bool {
-				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed)
+				return hasConditionWithStatus(cr, metav1.ConditionFalse, utils.ReasonAuthenticationFailed)
 			}, timeout, pollInterval).Should(BeTrue())
-
-			By("Cleaning up empty token secret")
-			deleteTokenSecret(emptySecretName)
 		})
 	})
 
@@ -122,6 +124,12 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Applying invalid token secret")
 			createTokenSecret(invalidSecretName, invalidTokenValue)
+			DeferCleanup(func() {
+				By("Restoring original controller configuration")
+				updateControllerSecret(secretName)
+				deleteTokenSecret(invalidSecretName)
+				waitForControllerReady()
+			})
 
 			By("Updating controller secret")
 			updateControllerSecret(invalidSecretName)
@@ -134,13 +142,9 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Verifying authentication failure is handled")
 			Eventually(func() bool {
-				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed, utils.ReasonGitHubAPIError)
+				return hasConditionWithStatus(cr, metav1.ConditionFalse,
+					utils.ReasonAuthenticationFailed, utils.ReasonGitHubAPIError)
 			}, timeout, pollInterval).Should(BeTrue())
-
-			By("Restoring original controller configuration")
-			updateControllerSecret(secretName)
-			deleteTokenSecret(invalidSecretName)
-			waitForControllerReady()
 		})
 	})
 })
