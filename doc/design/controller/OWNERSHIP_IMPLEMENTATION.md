@@ -92,7 +92,17 @@ func extractLabelNames(labels []*github.Label) []string {
 ### Phase 2: Controller Updates
 
 **📁 File**: `internal/controller/githubissue_controller.go`
-**🎯 Action**: ADD constants and MODIFY existing Reconcile method
+**🎯 Action**: ADD import, ADD constants and MODIFY existing Reconcile method
+
+#### Required Imports
+**📍 Location**: Add to import section in `internal/controller/githubissue_controller.go`
+```go
+import (
+    // ... existing imports ...
+    "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+    gogithub "github.com/google/go-github/v57/github"  // For *github.Issue types
+)
+```
 
 #### Constants
 **📍 Location**: Add at the top of `internal/controller/githubissue_controller.go` after imports
@@ -405,7 +415,8 @@ func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1
 func (r *GithubIssueReconciler) cleanupGitHubIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
     log := logf.FromContext(ctx)
     
-    if err := r.closeIssue(ctx, githubClient, *cr.Status.IssueID); err != nil {
+    // Close the GitHub issue
+    if _, err := githubClient.CloseIssue(ctx, *cr.Status.IssueID); err != nil {
         log.Error(err, "Failed to close GitHub issue", "issueID", *cr.Status.IssueID)
         return err
     }
@@ -420,12 +431,6 @@ func (r *GithubIssueReconciler) cleanupGitHubIssue(ctx context.Context, githubCl
     log.Info("GitHub issue closed and ownership label removed", "issueID", *cr.Status.IssueID)
     return nil
 }
-
-func (r *GithubIssueReconciler) closeIssue(ctx context.Context, githubClient *github.Client, issueID int) error {
-    _, err := githubClient.CloseIssue(ctx, issueID)
-    return err
-}
-
 ```
 
 ### Phase 3: Error Handling Updates

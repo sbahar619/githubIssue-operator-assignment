@@ -30,20 +30,14 @@ func (r *GithubIssueReconciler) newGitHubClient(ctx context.Context, cr *githubv
 }
 
 func (r *GithubIssueReconciler) getExistingIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) (*gogithub.Issue, error) {
-	log := logf.FromContext(ctx)
-
 	if cr.Status.IssueID != nil {
-		log.Info("Looking up issue by ID", "issueID", *cr.Status.IssueID)
 		existingIssue, err := githubClient.GetIssueByID(ctx, *cr.Status.IssueID)
-		if err != nil {
-			log.Info("Issue ID lookup failed, falling back to title search", "issueID", *cr.Status.IssueID, "error", err.Error())
-		} else {
-			log.Info("Found issue by ID", "issueID", *cr.Status.IssueID, "title", existingIssue.GetTitle())
+		if err == nil {
 			return existingIssue, nil
 		}
+		// Fall back to title search if ID lookup fails
 	}
 
-	log.Info("Searching for issue by title", "title", cr.Spec.Title)
 	return r.getIssueByTitle(ctx, githubClient, cr)
 }
 
@@ -57,7 +51,7 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 
 	if existingIssue != nil {
 		if err := r.updateStatusFromGitHub(cr, existingIssue); err != nil {
-			log.Error(err, "Failed to update status from GitHub issue")
+			log.Error(err, "Failed to update status from GitHub issue", "name", cr.Name, "namespace", cr.Namespace)
 			return nil, fmt.Errorf("status update failed: %w", err)
 		}
 
@@ -66,12 +60,7 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 			utils.ReasonIssueFound,
 			fmt.Sprintf("Found existing issue #%d, checking if update is needed", *cr.Status.IssueID))
 
-		log.Info("Existing issue found",
-			"issueID", *cr.Status.IssueID,
-			"url", *cr.Status.URL,
-			"state", *cr.Status.State)
-	} else {
-		log.Info("No existing issue found", "title", cr.Spec.Title)
+		log.Info("Found existing GitHub issue", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 	}
 
 	return existingIssue, nil
@@ -80,7 +69,7 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
 	log := logf.FromContext(ctx)
 
-	log.Info("Creating new GitHub issue", "title", cr.Spec.Title)
+	log.Info("Creating GitHub issue", "title", cr.Spec.Title, "name", cr.Name, "namespace", cr.Namespace)
 
 	description := ""
 	if cr.Spec.Description != nil {
@@ -101,7 +90,7 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient
 		fmt.Sprintf("owner-%s-%s", cr.Namespace, cr.Name),
 	}
 	if err := githubClient.AddLabelsToIssue(ctx, createdIssue.GetNumber(), labels); err != nil {
-		log.Info("Failed to add labels to issue", "error", err, "issueID", createdIssue.GetNumber())
+		// Label failures are non-critical, continue without failing
 	}
 
 	if err := r.updateStatusFromGitHub(cr, createdIssue); err != nil {
@@ -117,17 +106,16 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient
 		utils.ReasonIssueCreated,
 		fmt.Sprintf("GitHub issue #%d created successfully", *cr.Status.IssueID))
 
-	log.Info("GitHub issue created successfully", "issueID", *cr.Status.IssueID)
+	log.Info("GitHub issue created", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 	return nil
 }
 
 func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue, existingIssue *gogithub.Issue) error {
 	log := logf.FromContext(ctx)
-	log.Info("Synchronizing existing issue", "issueID", *cr.Status.IssueID, "title", cr.Spec.Title)
 
 	// Reopen issue if closed
 	if existingIssue.GetState() == "closed" {
-		log.Info("Reopening closed issue", "issueID", existingIssue.GetNumber())
+		log.Info("Reopening closed GitHub issue", "issueID", existingIssue.GetNumber(), "name", cr.Name, "namespace", cr.Namespace)
 		if _, err := githubClient.OpenIssue(ctx, existingIssue.GetNumber()); err != nil {
 			utils.HandleGitHubAPIError(ctx, r.Client, cr, err)
 			return fmt.Errorf("failed to reopen issue: %w", err)
@@ -140,11 +128,11 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 		fmt.Sprintf("owner-%s-%s", cr.Namespace, cr.Name),
 	}
 	if err := githubClient.AddLabelsToIssue(ctx, existingIssue.GetNumber(), labels); err != nil {
-		log.Info("Failed to update ownership labels", "error", err, "issueID", existingIssue.GetNumber())
+		// Label failures are non-critical, continue without failing
 	}
 
 	if updateNeeded := r.isUpdateNeeded(cr, existingIssue); updateNeeded {
-		log.Info("Content differs, update required", "issueID", *cr.Status.IssueID)
+		log.Info("Updating GitHub issue content", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 
 		utils.SetCondition(ctx, r.Client, cr,
 			metav1.ConditionFalse,
@@ -177,11 +165,9 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 			utils.ReasonIssueSynchronized,
 			fmt.Sprintf("Issue #%d updated and synchronized successfully", *cr.Status.IssueID))
 
-		log.Info("Issue updated successfully", "issueID", *cr.Status.IssueID)
+		log.Info("GitHub issue updated", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 		return nil
 	}
-
-	log.Info("Issue synchronized", "issueID", *cr.Status.IssueID, "status", "up-to-date")
 
 	utils.SetCondition(ctx, r.Client, cr,
 		metav1.ConditionTrue,
@@ -213,18 +199,17 @@ func (r *GithubIssueReconciler) cleanupGitHubIssue(ctx context.Context, githubCl
 	if _, err := githubClient.CloseIssue(ctx, *cr.Status.IssueID); err != nil {
 		// Check if the issue was already deleted (410 Gone)
 		if githubError, ok := err.(*github.GitHubError); ok && githubError.StatusCode == 410 {
-			log.Info("GitHub issue was already deleted, skipping cleanup", "issueID", *cr.Status.IssueID)
-			return nil
+			return nil // Issue already deleted
 		}
-		log.Error(err, "Failed to close GitHub issue", "issueID", *cr.Status.IssueID)
+		log.Error(err, "Failed to close GitHub issue", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 		return err
 	}
 
 	ownershipLabel := fmt.Sprintf("owner-%s-%s", cr.Namespace, cr.Name)
 	if err := githubClient.RemoveLabelFromIssue(ctx, *cr.Status.IssueID, ownershipLabel); err != nil {
-		log.Info("Failed to remove ownership label", "error", err, "issueID", *cr.Status.IssueID)
+		// Label removal failures are non-critical during cleanup
 	}
 
-	log.Info("GitHub issue closed and ownership label removed", "issueID", *cr.Status.IssueID)
+	log.Info("GitHub issue closed", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 	return nil
 }

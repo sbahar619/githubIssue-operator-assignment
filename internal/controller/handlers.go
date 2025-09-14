@@ -14,7 +14,6 @@ import (
 func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
 	githubClient, err := r.newGitHubClient(ctx, cr)
 	if err != nil {
-		// Error handling is already done in newGitHubClient, just return the error
 		return err
 	}
 
@@ -45,7 +44,6 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 
 func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
 	log := logf.FromContext(ctx)
-	log.Info("Handling CR deletion", "cr", cr.Name)
 
 	if cr.Status.IssueID != nil {
 		githubClient, err := r.newGitHubClient(ctx, cr)

@@ -48,29 +48,22 @@ type GithubIssueReconciler struct {
 // move the current state of the cluster closer to the desired state.
 func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
-	log.Info("Reconciliation started", "resource", req.NamespacedName)
 
 	var githubIssue githubv1alpha1.GithubIssue
 	if err := r.Get(ctx, req.NamespacedName, &githubIssue); err != nil {
-		log.Info("Failed to get CR or CR not found", "error", err)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	log.Info("Successfully retrieved CR", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
 
 	if !controllerutil.ContainsFinalizer(&githubIssue, FinalizerName) {
-		log.Info("Adding finalizer to CR")
 		controllerutil.AddFinalizer(&githubIssue, FinalizerName)
 		if err := r.Update(ctx, &githubIssue); err != nil {
-			log.Error(err, "Failed to add finalizer")
+			log.Error(err, "Failed to add finalizer", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
 			return ctrl.Result{}, err
 		}
-		log.Info("Finalizer added successfully, continuing with reconciliation")
-	} else {
-		log.Info("Finalizer already present, proceeding with reconciliation")
 	}
 
 	if githubIssue.DeletionTimestamp != nil {
-		log.Info("CR is being deleted, handling deletion")
+		log.Info("Deleting GitHub issue", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
 		if err := r.handleDeletion(ctx, &githubIssue); err != nil {
 			return ctrl.Result{RequeueAfter: time.Minute}, err
 		}
@@ -80,13 +73,11 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 		return ctrl.Result{}, nil
 	}
-	log.Info("CR is not being deleted, calling handleCreateOrUpdate")
 
 	if err := r.handleCreateOrUpdate(ctx, &githubIssue); err != nil {
-		log.Error(err, "handleCreateOrUpdate failed, will requeue")
+		log.Error(err, "Failed to reconcile GitHub issue", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
 		return ctrl.Result{RequeueAfter: time.Minute}, err
 	}
-	log.Info("handleCreateOrUpdate completed successfully")
 
 	return ctrl.Result{}, nil
 }

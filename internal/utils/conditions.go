@@ -82,6 +82,6 @@ func SetCondition(ctx context.Context, k8sClient client.Client, githubIssue *git
 	})
 
 	if updateErr := k8sClient.Status().Update(ctx, githubIssue); updateErr != nil {
-		log.Error(updateErr, "Failed to update status", "githubissue", githubIssue.Name)
+		log.Error(updateErr, "Failed to update status", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
 	}
 }
