@@ -101,7 +101,7 @@ func (c *Client) GetIssueByID(ctx context.Context, issueNumber int) (*github.Iss
 }
 
 func (c *Client) GetIssueByTitle(ctx context.Context, title string) (*github.Issue, error) {
-	query := fmt.Sprintf(`"%s" in:title repo:%s/%s is:issue is:open`,
+	query := fmt.Sprintf(`"%s" in:title repo:%s/%s is:issue`,
 		title, c.repo.Owner, c.repo.Name)
 
 	result, _, err := c.githubClient.Search.Issues(ctx, query, &github.SearchOptions{
@@ -152,6 +152,17 @@ func (c *Client) UpdateIssue(ctx context.Context, issueNumber int, title, descri
 	return issue, nil
 }
 
+func (c *Client) OpenIssue(ctx context.Context, issueNumber int) (*github.Issue, error) {
+	state := IssueStateOpen
+	issueRequest := &github.IssueRequest{State: &state}
+
+	issue, _, err := c.githubClient.Issues.Edit(ctx, c.repo.Owner, c.repo.Name, issueNumber, issueRequest)
+	if err != nil {
+		return nil, c.handleError(err)
+	}
+	return issue, nil
+}
+
 func (c *Client) CloseIssue(ctx context.Context, issueNumber int) (*github.Issue, error) {
 	state := IssueStateClosed
 	issueRequest := &github.IssueRequest{
@@ -173,4 +184,37 @@ func (c *Client) HasPullRequest(ctx context.Context, issueNumber int) (bool, err
 	}
 
 	return issue.PullRequestLinks != nil, nil
+}
+
+func (c *Client) AddLabelsToIssue(ctx context.Context, issueNumber int, labels []string) error {
+	_, _, err := c.githubClient.Issues.AddLabelsToIssue(ctx, c.repo.Owner, c.repo.Name, issueNumber, labels)
+	if err != nil {
+		return c.handleError(err)
+	}
+	return nil
+}
+
+func (c *Client) ListIssueLabels(ctx context.Context, issueNumber int) ([]string, error) {
+	issue, _, err := c.githubClient.Issues.Get(ctx, c.repo.Owner, c.repo.Name, issueNumber)
+	if err != nil {
+		return nil, c.handleError(err)
+	}
+
+	return extractLabelNames(issue.Labels), nil
+}
+
+func (c *Client) RemoveLabelFromIssue(ctx context.Context, issueNumber int, labelName string) error {
+	_, err := c.githubClient.Issues.RemoveLabelForIssue(ctx, c.repo.Owner, c.repo.Name, issueNumber, labelName)
+	if err != nil {
+		return c.handleError(err)
+	}
+	return nil
+}
+
+func extractLabelNames(labels []*github.Label) []string {
+	labelNames := make([]string, len(labels))
+	for i, label := range labels {
+		labelNames[i] = label.GetName()
+	}
+	return labelNames
 }

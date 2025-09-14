@@ -9,21 +9,21 @@ Design reconciliation logic for GitHub issue lifecycle management following Kube
 
 ### Reconciliation Strategy
 - **Single issue per CR** - One-to-one mapping prevents complexity
-- **Controller authority** - CR spec enforces state on GitHub
-- **Search-based lookup** - Use `GetIssueByTitle` for conflict detection
+- **Label-based ownership** - Only manage issues with operator labels
+- **ID-first lookup** - Use stored IssueID, fallback to title search
 - **Status synchronization** - Reflect GitHub state in CR status
 
 ### Issue State Management
-- **Create path** - Issue doesn't exist, create new one
-- **Update path** - Issue exists, apply CR spec changes
-- **Delete path** - CR deleted, close GitHub issue via finalizer
-- **Conflict path** - Multiple CRs claim same issue, fail with error
+- **Create path** - Issue doesn't exist, create with operator labels, ensure open
+- **Update path** - Issue exists with operator labels, apply CR spec changes, ensure open
+- **Delete path** - CR deleted, close GitHub issue via finalizer, remove finalizer
+- **Ownership verification** - Check labels before taking any action
 
 ### Error Classification
 - **Authentication** - Token missing/invalid, requeue with delay
 - **Retryable** - GitHub API 5xx/429, exponential backoff
 - **Non-retryable** - Permission denied, invalid repo, set error condition
-- **Conflicts** - Duplicate title/repo, set conflict condition
+- **Ownership** - Human-owned or conflicted issues, set error condition
 
 ### Status Reporting
 - **Conditions** - Standard Kubernetes pattern (Ready, Synced, Conflict)
@@ -31,12 +31,13 @@ Design reconciliation logic for GitHub issue lifecycle management following Kube
 - **Error details** - Descriptive messages for troubleshooting
 
 ### Finalizer Strategy
-- **Add on creation** - Ensure cleanup on CR deletion
-- **Close GitHub issue** - Use stored IssueID from status
+- **Add on first reconcile** - Ensure cleanup on CR deletion (`github.shahaf.com/finalizer`)
+- **Deletion handling** - Close GitHub issue using stored IssueID from status
+- **Error handling** - Retry on GitHub API errors during deletion
 - **Remove after cleanup** - Standard Kubernetes finalizer pattern
 
 ## Integration Points
 - **Authentication** - Use `auth.GetGitHubToken()` for token retrieval
 - **GitHub client** - Use `github.NewClient()` with token and repo URL
-- **API operations** - GetIssueByTitle, CreateIssue, UpdateIssue, CloseIssue
-- **Conflict detection** - Search by title, check ownership via metadata
+- **API operations** - GetIssueByID, GetIssueByTitle, CreateIssue, UpdateIssue, CloseIssue, OpenIssue
+- **Ownership verification** - Check labels: `managed-by: github-issue-operator`

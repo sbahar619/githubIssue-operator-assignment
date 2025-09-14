@@ -1,0 +1,230 @@
+package controller
+
+import (
+	"context"
+	"fmt"
+
+	gogithub "github.com/google/go-github/v57/github"
+	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
+	"github.com/sbahar619/githubIssue-operator-assignment/internal/auth"
+	"github.com/sbahar619/githubIssue-operator-assignment/internal/github"
+	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+func (r *GithubIssueReconciler) newGitHubClient(ctx context.Context, cr *githubv1alpha1.GithubIssue) (*github.Client, error) {
+	token, err := auth.GetGitHubToken()
+	if err != nil {
+		utils.HandleTokenRetrievalError(ctx, r.Client, cr, err)
+		return nil, err
+	}
+
+	githubClient, err := github.NewClient(token, cr.Spec.Repo)
+	if err != nil {
+		utils.HandleGitHubAPIError(ctx, r.Client, cr, err)
+		return nil, err
+	}
+
+	return githubClient, nil
+}
+
+func (r *GithubIssueReconciler) getExistingIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) (*gogithub.Issue, error) {
+	log := logf.FromContext(ctx)
+
+	if cr.Status.IssueID != nil {
+		log.Info("Looking up issue by ID", "issueID", *cr.Status.IssueID)
+		existingIssue, err := githubClient.GetIssueByID(ctx, *cr.Status.IssueID)
+		if err != nil {
+			log.Info("Issue ID lookup failed, falling back to title search", "issueID", *cr.Status.IssueID, "error", err.Error())
+		} else {
+			log.Info("Found issue by ID", "issueID", *cr.Status.IssueID, "title", existingIssue.GetTitle())
+			return existingIssue, nil
+		}
+	}
+
+	log.Info("Searching for issue by title", "title", cr.Spec.Title)
+	return r.getIssueByTitle(ctx, githubClient, cr)
+}
+
+func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) (*gogithub.Issue, error) {
+	log := logf.FromContext(ctx)
+
+	existingIssue, err := githubClient.GetIssueByTitle(ctx, cr.Spec.Title)
+	if err != nil {
+		return nil, err
+	}
+
+	if existingIssue != nil {
+		if err := r.updateStatusFromGitHub(cr, existingIssue); err != nil {
+			log.Error(err, "Failed to update status from GitHub issue")
+			return nil, fmt.Errorf("status update failed: %w", err)
+		}
+
+		utils.SetCondition(ctx, r.Client, cr,
+			metav1.ConditionFalse,
+			utils.ReasonIssueFound,
+			fmt.Sprintf("Found existing issue #%d, checking if update is needed", *cr.Status.IssueID))
+
+		log.Info("Existing issue found",
+			"issueID", *cr.Status.IssueID,
+			"url", *cr.Status.URL,
+			"state", *cr.Status.State)
+	} else {
+		log.Info("No existing issue found", "title", cr.Spec.Title)
+	}
+
+	return existingIssue, nil
+}
+
+func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
+	log := logf.FromContext(ctx)
+
+	log.Info("Creating new GitHub issue", "title", cr.Spec.Title)
+
+	description := ""
+	if cr.Spec.Description != nil {
+		description = *cr.Spec.Description
+	}
+
+	createdIssue, err := githubClient.CreateIssue(ctx, cr.Spec.Title, description)
+	if err != nil {
+		utils.SetCondition(ctx, r.Client, cr,
+			metav1.ConditionFalse,
+			utils.ReasonGitHubAPIError,
+			fmt.Sprintf("Failed to create GitHub issue: %s", err.Error()))
+		return err
+	}
+
+	labels := []string{
+		OperatorManagedLabel,
+		fmt.Sprintf("owner-%s-%s", cr.Namespace, cr.Name),
+	}
+	if err := githubClient.AddLabelsToIssue(ctx, createdIssue.GetNumber(), labels); err != nil {
+		log.Info("Failed to add labels to issue", "error", err, "issueID", createdIssue.GetNumber())
+	}
+
+	if err := r.updateStatusFromGitHub(cr, createdIssue); err != nil {
+		utils.SetCondition(ctx, r.Client, cr,
+			metav1.ConditionFalse,
+			utils.ReasonGitHubAPIError,
+			fmt.Sprintf("Failed to update status after issue creation: %s", err.Error()))
+		return err
+	}
+
+	utils.SetCondition(ctx, r.Client, cr,
+		metav1.ConditionTrue,
+		utils.ReasonIssueCreated,
+		fmt.Sprintf("GitHub issue #%d created successfully", *cr.Status.IssueID))
+
+	log.Info("GitHub issue created successfully", "issueID", *cr.Status.IssueID)
+	return nil
+}
+
+func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue, existingIssue *gogithub.Issue) error {
+	log := logf.FromContext(ctx)
+	log.Info("Synchronizing existing issue", "issueID", *cr.Status.IssueID, "title", cr.Spec.Title)
+
+	// Reopen issue if closed
+	if existingIssue.GetState() == "closed" {
+		log.Info("Reopening closed issue", "issueID", existingIssue.GetNumber())
+		if _, err := githubClient.OpenIssue(ctx, existingIssue.GetNumber()); err != nil {
+			utils.HandleGitHubAPIError(ctx, r.Client, cr, err)
+			return fmt.Errorf("failed to reopen issue: %w", err)
+		}
+	}
+
+	// Add ownership labels
+	labels := []string{
+		OperatorManagedLabel,
+		fmt.Sprintf("owner-%s-%s", cr.Namespace, cr.Name),
+	}
+	if err := githubClient.AddLabelsToIssue(ctx, existingIssue.GetNumber(), labels); err != nil {
+		log.Info("Failed to update ownership labels", "error", err, "issueID", existingIssue.GetNumber())
+	}
+
+	if updateNeeded := r.isUpdateNeeded(cr, existingIssue); updateNeeded {
+		log.Info("Content differs, update required", "issueID", *cr.Status.IssueID)
+
+		utils.SetCondition(ctx, r.Client, cr,
+			metav1.ConditionFalse,
+			utils.ReasonUpdateRequired,
+			fmt.Sprintf("Issue #%d content differs from desired state, update required", *cr.Status.IssueID))
+
+		description := ""
+		if cr.Spec.Description != nil {
+			description = *cr.Spec.Description
+		}
+		updatedIssue, err := githubClient.UpdateIssue(ctx, *existingIssue.Number, cr.Spec.Title, description)
+		if err != nil {
+			utils.SetCondition(ctx, r.Client, cr,
+				metav1.ConditionFalse,
+				utils.ReasonGitHubAPIError,
+				fmt.Sprintf("Failed to update issue #%d: %s", *cr.Status.IssueID, err.Error()))
+			return err
+		}
+
+		if err := r.updateStatusFromGitHub(cr, updatedIssue); err != nil {
+			utils.SetCondition(ctx, r.Client, cr,
+				metav1.ConditionFalse,
+				utils.ReasonGitHubAPIError,
+				fmt.Sprintf("Failed to update status after issue update: %s", err.Error()))
+			return err
+		}
+
+		utils.SetCondition(ctx, r.Client, cr,
+			metav1.ConditionTrue,
+			utils.ReasonIssueSynchronized,
+			fmt.Sprintf("Issue #%d updated and synchronized successfully", *cr.Status.IssueID))
+
+		log.Info("Issue updated successfully", "issueID", *cr.Status.IssueID)
+		return nil
+	}
+
+	log.Info("Issue synchronized", "issueID", *cr.Status.IssueID, "status", "up-to-date")
+
+	utils.SetCondition(ctx, r.Client, cr,
+		metav1.ConditionTrue,
+		utils.ReasonIssueSynchronized,
+		fmt.Sprintf("Issue #%d content matches desired state", *cr.Status.IssueID))
+
+	return nil
+}
+
+func (r *GithubIssueReconciler) isUpdateNeeded(cr *githubv1alpha1.GithubIssue, issue *gogithub.Issue) bool {
+	if cr.Spec.Title != issue.GetTitle() {
+		return true
+	}
+
+	specDesc := ""
+	if cr.Spec.Description != nil {
+		specDesc = *cr.Spec.Description
+	}
+	githubDesc := ""
+	if issue.Body != nil {
+		githubDesc = *issue.Body
+	}
+	return specDesc != githubDesc
+}
+
+func (r *GithubIssueReconciler) cleanupGitHubIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
+	log := logf.FromContext(ctx)
+
+	if _, err := githubClient.CloseIssue(ctx, *cr.Status.IssueID); err != nil {
+		// Check if the issue was already deleted (410 Gone)
+		if githubError, ok := err.(*github.GitHubError); ok && githubError.StatusCode == 410 {
+			log.Info("GitHub issue was already deleted, skipping cleanup", "issueID", *cr.Status.IssueID)
+			return nil
+		}
+		log.Error(err, "Failed to close GitHub issue", "issueID", *cr.Status.IssueID)
+		return err
+	}
+
+	ownershipLabel := fmt.Sprintf("owner-%s-%s", cr.Namespace, cr.Name)
+	if err := githubClient.RemoveLabelFromIssue(ctx, *cr.Status.IssueID, ownershipLabel); err != nil {
+		log.Info("Failed to remove ownership label", "error", err, "issueID", *cr.Status.IssueID)
+	}
+
+	log.Info("GitHub issue closed and ownership label removed", "issueID", *cr.Status.IssueID)
+	return nil
+}

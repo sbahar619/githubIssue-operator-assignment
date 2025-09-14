@@ -27,6 +27,8 @@ const (
 	// Error Reasons
 	ReasonAuthenticationFailed = "AuthenticationFailed"
 	ReasonGitHubAPIError       = "GitHubAPIError"
+	ReasonExternallyOwnedIssue = "ExternallyOwnedIssue"
+	ReasonConflictedOwnership  = "ConflictedOwnership"
 )
 
 func HandleTokenRetrievalError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {

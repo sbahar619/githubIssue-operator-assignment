@@ -23,8 +23,8 @@ Kubernetes operator that manages GitHub issues via Custom Resource Definitions. 
 
 - **Declarative**: Users declare desired GitHub issue state
 - **Single Issue Per CR**: One-to-one mapping prevents complexity
-- **Controller Authority**: Controller enforces CR spec on GitHub
-- **Conflict Prevention**: First-come-first-served with clear error messages
+- **Explicit Ownership**: Only manage issues with operator labels (consent-based)
+- **Safe by Default**: Never modify human-created issues without explicit permission
 
 ## Architecture
 
@@ -38,7 +38,7 @@ User Creates CR → Controller Reconciles → GitHub API → Status Updated
 1. **Auth**: GitHub token from environment variable (mounted from secret)
 2. **Validation**: CRD-level patterns + controller business logic
 3. **Status**: Standard Kubernetes conditions + GitHub metadata
-4. **Conflicts**: Detect duplicate titles, fail with descriptive errors
+4. **Ownership**: Label-based tracking (`managed-by: github-issue-operator`)
 
 ## Implementation Plan
 
