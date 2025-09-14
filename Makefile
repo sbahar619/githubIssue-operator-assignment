@@ -67,10 +67,11 @@ test: manifests generate fmt vet setup-envtest ## Run tests.
 ##@ E2E Testing
 
 KIND_CLUSTER ?= github-issue-operator-test-e2e
+GINKGO_FOCUS ?=
 
 .PHONY: test-e2e
-test-e2e: manifests generate fmt vet ## Run the e2e tests against existing cluster (assumes operator is deployed).
-	go test ./test/e2e/ -v -ginkgo.v
+test-e2e: manifests generate fmt vet ## Run the e2e tests against existing cluster (assumes operator is deployed). Use GINKGO_FOCUS to run specific tests.
+	go test ./test/e2e/ -v -ginkgo.v $(if $(GINKGO_FOCUS),-ginkgo.focus="$(GINKGO_FOCUS)")
 
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist

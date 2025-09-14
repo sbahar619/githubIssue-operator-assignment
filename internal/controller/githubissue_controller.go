@@ -71,7 +71,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	log.Info("GitHub client created", "repo", githubIssue.Spec.Repo)
 
-	existingIssue, err := r.getIssueByTitle(ctx, githubClient, &githubIssue)
+	existingIssue, err := r.getExistingIssue(ctx, githubClient, &githubIssue)
 	if err != nil {
 		utils.HandleGitHubAPIError(ctx, r.Client, &githubIssue, err)
 		return ctrl.Result{RequeueAfter: time.Minute * 2}, nil
@@ -92,6 +92,24 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *GithubIssueReconciler) getExistingIssue(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue) (*gogithub.Issue, error) {
+	log := logf.FromContext(ctx)
+
+	if githubIssue.Status.IssueID != nil {
+		log.Info("Looking up issue by ID", "issueID", *githubIssue.Status.IssueID)
+		existingIssue, err := githubClient.GetIssueByID(ctx, *githubIssue.Status.IssueID)
+		if err != nil {
+			log.Info("Issue ID lookup failed, falling back to title search", "issueID", *githubIssue.Status.IssueID, "error", err.Error())
+		} else {
+			log.Info("Found issue by ID", "issueID", *githubIssue.Status.IssueID, "title", existingIssue.GetTitle())
+			return existingIssue, nil
+		}
+	}
+
+	log.Info("Searching for issue by title", "title", githubIssue.Spec.Title)
+	return r.getIssueByTitle(ctx, githubClient, githubIssue)
 }
 
 func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue, existingIssue *gogithub.Issue) error {
@@ -136,7 +154,6 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 		return nil
 	}
 
-	// No update needed, mark as synchronized
 	log.Info("Issue synchronized", "issueID", *githubIssue.Status.IssueID, "status", "up-to-date")
 
 	utils.SetCondition(ctx, r.Client, githubIssue,
@@ -178,15 +195,39 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 	return existingIssue, nil
 }
 
-//nolint:unparam // Function always returns nil during stub phase, will be implemented later
 func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient *github.Client, githubIssue *githubv1alpha1.GithubIssue) error {
 	log := logf.FromContext(ctx)
-	log.Info("Issue creation not implemented", "phase", "stub")
 
-	_ = githubClient // TODO: Will be used when issue creation logic is implemented
+	log.Info("Creating new GitHub issue", "title", githubIssue.Spec.Title)
 
-	details := "GitHub issue created successfully (placeholder implementation)"
-	utils.SetCondition(ctx, r.Client, githubIssue, metav1.ConditionTrue, utils.ReasonIssueCreated, details)
+	description := ""
+	if githubIssue.Spec.Description != nil {
+		description = *githubIssue.Spec.Description
+	}
+
+	createdIssue, err := githubClient.CreateIssue(ctx, githubIssue.Spec.Title, description)
+	if err != nil {
+		utils.SetCondition(ctx, r.Client, githubIssue,
+			metav1.ConditionFalse,
+			utils.ReasonGitHubAPIError,
+			fmt.Sprintf("Failed to create GitHub issue: %s", err.Error()))
+		return err
+	}
+
+	if err := r.updateStatusFromGitHub(githubIssue, createdIssue); err != nil {
+		utils.SetCondition(ctx, r.Client, githubIssue,
+			metav1.ConditionFalse,
+			utils.ReasonGitHubAPIError,
+			fmt.Sprintf("Failed to update status after issue creation: %s", err.Error()))
+		return err
+	}
+
+	utils.SetCondition(ctx, r.Client, githubIssue,
+		metav1.ConditionTrue,
+		utils.ReasonIssueCreated,
+		fmt.Sprintf("GitHub issue #%d created successfully", *githubIssue.Status.IssueID))
+
+	log.Info("GitHub issue created successfully", "issueID", *githubIssue.Status.IssueID)
 	return nil
 }
 

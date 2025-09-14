@@ -19,17 +19,13 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,24 +34,8 @@ import (
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 )
 
-const (
-	// Operator configuration
-	operatorNamespace       = "github-issue-operator-system"
-	deploymentName          = "github-issue-operator-controller-manager"
-	secretName              = "github-issue-operator-token-secret"
-	controllerContainerName = "manager"
-
-	// Test configuration
-	githubRepoURL     = "https://github.com/sbahar619/githubIssue-operator-assignment"
-	invalidTokenValue = "invalid-token-value"
-	timeout           = time.Minute * 2
-	pollInterval      = time.Second * 5
-)
-
 var (
-	k8sClient client.Client
 	clientset *kubernetes.Clientset
-	ctx       context.Context
 )
 
 var _ = BeforeEach(func() {
@@ -164,110 +144,3 @@ var _ = Describe("GitHub Token Authentication", func() {
 		})
 	})
 })
-
-func createNamespace(name string) {
-	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
-	}
-	Expect(k8sClient.Create(ctx, ns)).To(Succeed())
-}
-
-func deleteNamespace(name string) {
-	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
-	}
-	_ = k8sClient.Delete(ctx, ns)
-}
-
-func createGithubIssue(name, namespace string) *githubv1alpha1.GithubIssue {
-	cr := &githubv1alpha1.GithubIssue{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: githubv1alpha1.GithubIssueSpec{
-			Repo:  githubRepoURL,
-			Title: fmt.Sprintf("auth-%d", time.Now().Unix()),
-			Description: func() *string {
-				desc := "E2E authentication test"
-				return &desc
-			}(),
-		},
-	}
-	Expect(k8sClient.Create(ctx, cr)).To(Succeed())
-	return cr
-}
-
-func createTokenSecret(secretName, tokenValue string) {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: operatorNamespace,
-		},
-		Type: corev1.SecretTypeOpaque,
-		StringData: map[string]string{
-			"token": tokenValue,
-		},
-	}
-
-	Expect(k8sClient.Create(ctx, secret)).To(Succeed())
-}
-
-func deleteTokenSecret(secretName string) {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: operatorNamespace,
-		},
-	}
-	_ = k8sClient.Delete(ctx, secret)
-}
-
-func getOperatorDeployment() (*appsv1.Deployment, error) {
-	deployment := &appsv1.Deployment{}
-	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
-	err := k8sClient.Get(ctx, key, deployment)
-	return deployment, err
-}
-
-func updateControllerSecret(secretName string) {
-	Eventually(func() error {
-		deployment, err := getOperatorDeployment()
-		if err != nil {
-			return err
-		}
-
-		deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name = secretName
-
-		return k8sClient.Update(ctx, deployment)
-	}, time.Second*30, time.Second*2).Should(Succeed())
-}
-
-func hasConditionWithReason(cr *githubv1alpha1.GithubIssue, reasons ...string) bool {
-	key := types.NamespacedName{Name: cr.Name, Namespace: cr.Namespace}
-	err := k8sClient.Get(ctx, key, cr)
-	if err != nil {
-		return false
-	}
-
-	condition := meta.FindStatusCondition(cr.Status.Conditions, utils.ConditionTypeReady)
-	if condition == nil || condition.Status != metav1.ConditionFalse {
-		return false
-	}
-
-	return slices.Contains(reasons, condition.Reason)
-}
-
-func waitForControllerReady() {
-	Eventually(func() bool {
-		return isControllerReady()
-	}, time.Minute*3, time.Second*10).Should(BeTrue())
-}
-
-func isControllerReady() bool {
-	deployment, err := getOperatorDeployment()
-	if err != nil {
-		return false
-	}
-	return deployment.Status.ReadyReplicas == *deployment.Spec.Replicas
-}

@@ -91,6 +91,15 @@ func (c *Client) handleError(err error) error {
 	}
 }
 
+func (c *Client) GetIssueByID(ctx context.Context, issueNumber int) (*github.Issue, error) {
+	issue, _, err := c.githubClient.Issues.Get(ctx, c.repo.Owner, c.repo.Name, issueNumber)
+	if err != nil {
+		return nil, c.handleError(err)
+	}
+
+	return issue, nil
+}
+
 func (c *Client) GetIssueByTitle(ctx context.Context, title string) (*github.Issue, error) {
 	query := fmt.Sprintf(`"%s" in:title repo:%s/%s is:issue is:open`,
 		title, c.repo.Owner, c.repo.Name)
