@@ -64,4 +64,4 @@ spec:
             secretKeyRef:
               name: {{ .Chart.Name }}-token-secret
               key: token
-      terminationGracePeriodSeconds: 10
+      terminationGracePeriodSeconds: 30
