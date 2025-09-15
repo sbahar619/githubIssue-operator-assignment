@@ -13,7 +13,19 @@ import (
 func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
 	githubClient, err := r.newGitHubClient(ctx, cr)
 	if err != nil {
-		return err
+		utils.SetCondition(ctx, r.Client, cr,
+			metav1.ConditionFalse,
+			utils.ReasonAuthenticationFailed,
+			err.Error())
+		return nil
+	}
+
+	if err := githubClient.ValidateAuthentication(ctx); err != nil {
+		utils.SetCondition(ctx, r.Client, cr,
+			metav1.ConditionFalse,
+			utils.ReasonAuthenticationFailed,
+			err.Error())
+		return nil
 	}
 
 	existingIssue, err := r.getExistingIssue(ctx, githubClient, cr)

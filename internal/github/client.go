@@ -52,6 +52,14 @@ func NewClient(token, repoURL string) (*Client, error) {
 	}, nil
 }
 
+func (c *Client) ValidateAuthentication(ctx context.Context) error {
+	_, _, err := c.githubClient.Users.Get(ctx, "")
+	if err != nil {
+		return fmt.Errorf("GitHub authentication failed: %w", err)
+	}
+	return nil
+}
+
 func parseRepositoryURL(repoURL string) (*Repository, error) {
 	parsedURL, err := url.Parse(repoURL)
 	if err != nil {
