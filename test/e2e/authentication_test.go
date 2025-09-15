@@ -164,9 +164,9 @@ func waitForSecretUpdate(secretName string) {
 
 func updateAuthConfiguration(secretName string) {
 	updateDeploymentSecret(secretName)
+	time.Sleep(time.Second * 15)
 	waitForSecretUpdate(secretName)
 	waitForControllerReady()
-	time.Sleep(time.Second * 10)
 }
 
 func waitForControllerReady() {

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -48,6 +49,26 @@ var _ = BeforeSuite(func() {
 
 	k8sClient, err = client.New(config, client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred(), "Should create controller-runtime client")
+})
+
+var _ = AfterSuite(func() {
+	By("Waiting for any GithubIssue resources with finalizers to complete cleanup")
+	Eventually(func() bool {
+		var githubIssues githubv1alpha1.GithubIssueList
+		if err := k8sClient.List(ctx, &githubIssues); err != nil {
+			return false
+		}
+
+		// Check if any issues are still being deleted (have finalizers)
+		for _, issue := range githubIssues.Items {
+			if issue.DeletionTimestamp != nil && len(issue.Finalizers) > 0 {
+				_, _ = fmt.Fprintf(GinkgoWriter, "Still waiting for finalizer cleanup: %s/%s\n",
+					issue.Namespace, issue.Name)
+				return false
+			}
+		}
+		return true
+	}, time.Minute*2, time.Second*5).Should(BeTrue(), "All finalizers should be cleaned up")
 })
 
 // TestE2E runs the end-to-end (e2e) test suite for GitHub Issue Operator authentication.
