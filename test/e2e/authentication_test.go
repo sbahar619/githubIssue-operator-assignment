@@ -92,6 +92,7 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Applying empty token secret")
 			createTokenSecret(emptySecretName, "")
+			DeferCleanup(deleteTokenSecret, emptySecretName)
 
 			By("Updating controller secret")
 			updateControllerSecret(emptySecretName)
@@ -103,9 +104,6 @@ var _ = Describe("GitHub Token Authentication", func() {
 			Eventually(func() bool {
 				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed)
 			}, timeout, pollInterval).Should(BeTrue())
-
-			By("Cleaning up empty token secret")
-			deleteTokenSecret(emptySecretName)
 		})
 	})
 
@@ -119,6 +117,7 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Applying invalid token secret")
 			createTokenSecret(invalidSecretName, invalidTokenValue)
+			DeferCleanup(deleteTokenSecret, invalidSecretName)
 
 			By("Updating controller secret")
 			updateControllerSecret(invalidSecretName)
@@ -133,7 +132,6 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Restoring original controller configuration")
 			updateControllerSecret(secretName)
-			deleteTokenSecret(invalidSecretName)
 			waitForControllerReady()
 		})
 	})
@@ -183,17 +181,26 @@ func deleteTokenSecret(secretName string) {
 }
 
 func updateControllerSecret(secretName string) {
-	deployment, _ := getOperatorDeployment()
-	deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name = secretName
-	Expect(k8sClient.Update(ctx, deployment)).To(Succeed())
+	Eventually(func() error {
+		deployment, err := getOperatorDeployment()
+		if err != nil {
+			return err
+		}
 
-	// Wait a moment for the update to propagate, then wait for controller to be ready
-	time.Sleep(time.Second * 5)
+		deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name = secretName
+		return k8sClient.Update(ctx, deployment)
+	}, time.Second*10, time.Second*1).Should(Succeed())
+
+	Eventually(func() bool {
+		current, _ := getOperatorDeployment()
+		return current.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name == secretName
+	}, time.Second*30, time.Second*2).Should(BeTrue())
+
 	waitForControllerReady()
 }
 
 func waitForControllerReady() {
 	Eventually(func() bool {
 		return isControllerReady()
-	}, time.Minute*3, time.Second*10).Should(BeTrue())
+	}, time.Minute*2, time.Second*10).Should(BeTrue())
 }
