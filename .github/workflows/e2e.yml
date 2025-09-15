@@ -54,6 +54,11 @@ jobs:
     - name: Run E2E tests
       run: make test-e2e
         
+    - name: Wait for cleanup completion
+      run: |
+        echo "Waiting 1 minute for GitHub API cleanup to complete..."
+        sleep 60
+        
     - name: Debug on failure
       if: failure()
       run: |
