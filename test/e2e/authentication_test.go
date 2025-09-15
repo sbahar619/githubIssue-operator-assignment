@@ -94,7 +94,7 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Verifying authentication failure is handled")
 			Eventually(func() bool {
-				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed, utils.ReasonGitHubAPIError)
+				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed)
 			}, timeout, pollInterval).Should(BeTrue())
 		})
 	})
@@ -166,6 +166,7 @@ func updateAuthConfiguration(secretName string) {
 	updateDeploymentSecret(secretName)
 	waitForSecretUpdate(secretName)
 	waitForControllerReady()
+	time.Sleep(time.Second * 10)
 }
 
 func waitForControllerReady() {
