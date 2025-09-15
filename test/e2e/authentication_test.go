@@ -83,7 +83,7 @@ var _ = Describe("GitHub Token Authentication", func() {
 		deleteNamespace(namespace)
 
 		By("Ensuring controller is restored to valid configuration")
-		updateControllerSecret(secretName)
+		updateAuthConfiguration(secretName)
 	})
 
 	Context("Token Retrieval Error", func() {
@@ -94,8 +94,8 @@ var _ = Describe("GitHub Token Authentication", func() {
 			createTokenSecret(emptySecretName, "")
 			DeferCleanup(deleteTokenSecret, emptySecretName)
 
-			By("Updating controller secret")
-			updateControllerSecret(emptySecretName)
+			By("Updating auth configuration")
+			updateAuthConfiguration(emptySecretName)
 
 			By("Creating GithubIssue CR")
 			cr := createGithubIssue(crName, namespace)
@@ -119,8 +119,8 @@ var _ = Describe("GitHub Token Authentication", func() {
 			createTokenSecret(invalidSecretName, invalidTokenValue)
 			DeferCleanup(deleteTokenSecret, invalidSecretName)
 
-			By("Updating controller secret")
-			updateControllerSecret(invalidSecretName)
+			By("Updating auth configuration")
+			updateAuthConfiguration(invalidSecretName)
 
 			By("Creating GithubIssue CR")
 			cr := createGithubIssue(crName, namespace)
@@ -130,9 +130,8 @@ var _ = Describe("GitHub Token Authentication", func() {
 				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed, utils.ReasonGitHubAPIError)
 			}, timeout, pollInterval).Should(BeTrue())
 
-			By("Restoring original controller configuration")
-			updateControllerSecret(secretName)
-			waitForControllerReady()
+			By("Restoring original auth configuration")
+			updateAuthConfiguration(secretName)
 		})
 	})
 })
@@ -180,7 +179,7 @@ func deleteTokenSecret(secretName string) {
 	_ = k8sClient.Delete(ctx, secret)
 }
 
-func updateControllerSecret(secretName string) {
+func updateDeploymentSecret(secretName string) {
 	Eventually(func() error {
 		deployment, err := getOperatorDeployment()
 		if err != nil {
@@ -190,12 +189,18 @@ func updateControllerSecret(secretName string) {
 		deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name = secretName
 		return k8sClient.Update(ctx, deployment)
 	}, time.Second*10, time.Second*1).Should(Succeed())
+}
 
+func waitForSecretUpdate(secretName string) {
 	Eventually(func() bool {
 		current, _ := getOperatorDeployment()
 		return current.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name == secretName
 	}, time.Second*30, time.Second*2).Should(BeTrue())
+}
 
+func updateAuthConfiguration(secretName string) {
+	updateDeploymentSecret(secretName)
+	waitForSecretUpdate(secretName)
 	waitForControllerReady()
 }
 
