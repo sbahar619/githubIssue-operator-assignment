@@ -65,7 +65,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if githubIssue.DeletionTimestamp != nil {
 		log.Info("Deleting GitHub issue", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
 		if err := r.handleDeletion(ctx, &githubIssue); err != nil {
-			return ctrl.Result{RequeueAfter: time.Second * 5}, err
+			return ctrl.Result{RequeueAfter: time.Minute}, err
 		}
 		controllerutil.RemoveFinalizer(&githubIssue, FinalizerName)
 		if err := r.Update(ctx, &githubIssue); err != nil {
