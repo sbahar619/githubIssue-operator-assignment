@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,11 +16,10 @@ var _ = Describe("GitHub Issue Creation and Update", Ordered, func() {
 	var githubIssue *githubv1alpha1.GithubIssue
 
 	BeforeAll(func() {
-		timestamp := time.Now().UnixNano()
-		crName = fmt.Sprintf("update-test-%d", timestamp)
-		namespace = fmt.Sprintf("test-ns-%d", timestamp)
-		initialTitle = fmt.Sprintf("E2E-Test-Initial-%d", timestamp)
-		updatedTitle = fmt.Sprintf("E2E-Test-Updated-%d", timestamp)
+		crName = "update-test"
+		namespace = "test-ns"
+		initialTitle = "E2E-Test-Initial"
+		updatedTitle = "E2E-Test-Updated"
 
 		By("Creating test namespace")
 		createNamespace(namespace)

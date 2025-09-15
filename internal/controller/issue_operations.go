@@ -86,9 +86,14 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient
 
 	labels := []string{
 		OperatorManagedLabel,
-		fmt.Sprintf("owner-%s.%s", cr.Namespace, cr.Name),
+		fmt.Sprintf("ns-%s", cr.Namespace),
+		fmt.Sprintf("cr-%s", cr.Name),
 	}
-	_ = githubClient.AddLabelsToIssue(ctx, createdIssue.GetNumber(), labels)
+
+	if err := githubClient.AddLabelsToIssue(ctx, createdIssue.GetNumber(), labels); err != nil {
+		log.Error(err, "Failed to add labels to GitHub issue", "issueID", createdIssue.GetNumber(), "labels", labels, "name", cr.Name, "namespace", cr.Namespace)
+		return err
+	}
 
 	if err := r.updateStatusFromGitHub(cr, createdIssue); err != nil {
 		utils.SetCondition(ctx, r.Client, cr,
@@ -120,9 +125,14 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 
 	labels := []string{
 		OperatorManagedLabel,
-		fmt.Sprintf("owner-%s.%s", cr.Namespace, cr.Name),
+		fmt.Sprintf("ns-%s", cr.Namespace),
+		fmt.Sprintf("cr-%s", cr.Name),
 	}
-	_ = githubClient.AddLabelsToIssue(ctx, existingIssue.GetNumber(), labels)
+
+	if err := githubClient.AddLabelsToIssue(ctx, existingIssue.GetNumber(), labels); err != nil {
+		log.Error(err, "Failed to add labels to GitHub issue", "issueID", existingIssue.GetNumber(), "labels", labels, "name", cr.Name, "namespace", cr.Namespace)
+		return err
+	}
 
 	if updateNeeded := r.isUpdateNeeded(cr, existingIssue); updateNeeded {
 		log.Info("Updating GitHub issue content", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
@@ -197,8 +207,16 @@ func (r *GithubIssueReconciler) cleanupGitHubIssue(ctx context.Context, githubCl
 		return err
 	}
 
-	ownershipLabel := fmt.Sprintf("owner-%s.%s", cr.Namespace, cr.Name)
-	_ = githubClient.RemoveLabelFromIssue(ctx, *cr.Status.IssueID, ownershipLabel)
+	nsLabel := fmt.Sprintf("ns-%s", cr.Namespace)
+	crLabel := fmt.Sprintf("cr-%s", cr.Name)
+
+	if err := githubClient.RemoveLabelFromIssue(ctx, *cr.Status.IssueID, nsLabel); err != nil {
+		log.Error(err, "Failed to remove namespace label from GitHub issue", "issueID", *cr.Status.IssueID, "label", nsLabel, "name", cr.Name, "namespace", cr.Namespace)
+	}
+
+	if err := githubClient.RemoveLabelFromIssue(ctx, *cr.Status.IssueID, crLabel); err != nil {
+		log.Error(err, "Failed to remove CR label from GitHub issue", "issueID", *cr.Status.IssueID, "label", crLabel, "name", cr.Name, "namespace", cr.Namespace)
+	}
 
 	log.Info("GitHub issue closed", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 	return nil

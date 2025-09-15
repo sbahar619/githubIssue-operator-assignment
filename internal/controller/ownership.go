@@ -32,17 +32,18 @@ func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClien
 		return nil
 	}
 
-	expectedOwner := fmt.Sprintf("%s/%s", cr.Namespace, cr.Name)
-	actualOwner := extractCROwnerFromLabels(labels)
+	expectedNS := cr.Namespace
+	expectedCR := cr.Name
+	actualNS, actualCR := extractOwnerFromLabels(labels)
 
-	if actualOwner == "" || actualOwner == expectedOwner {
+	if (actualNS == "" && actualCR == "") || (actualNS == expectedNS && actualCR == expectedCR) {
 		return nil
 	}
 
 	utils.SetCondition(ctx, r.Client, cr,
 		metav1.ConditionFalse,
 		utils.ReasonConflictedOwnership,
-		fmt.Sprintf("Issue owned by different CR: expected %s, actual %s", expectedOwner, actualOwner))
+		fmt.Sprintf("Issue owned by different CR: expected %s/%s, actual %s/%s", expectedNS, expectedCR, actualNS, actualCR))
 	return nil
 }
 
@@ -55,21 +56,13 @@ func hasOperatorManagedLabel(labels []string) bool {
 	return false
 }
 
-func extractCROwnerFromLabels(labels []string) string {
-	prefix := "owner-"
+func extractOwnerFromLabels(labels []string) (namespace, crName string) {
 	for _, label := range labels {
-		if strings.HasPrefix(label, prefix) {
-			ownerPart := strings.TrimPrefix(label, prefix)
-
-			dotIndex := strings.Index(ownerPart, ".")
-			if dotIndex == -1 {
-				return ownerPart
-			}
-
-			namespace := ownerPart[:dotIndex]
-			name := ownerPart[dotIndex+1:]
-			return namespace + "/" + name
+		if strings.HasPrefix(label, "ns-") {
+			namespace = strings.TrimPrefix(label, "ns-")
+		} else if strings.HasPrefix(label, "cr-") {
+			crName = strings.TrimPrefix(label, "cr-")
 		}
 	}
-	return ""
+	return namespace, crName
 }
