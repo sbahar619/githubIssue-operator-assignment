@@ -17,12 +17,38 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 )
+
+var _ = BeforeSuite(func() {
+	ctx = context.Background()
+
+	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		clientcmd.NewDefaultClientConfigLoadingRules(),
+		&clientcmd.ConfigOverrides{},
+	).ClientConfig()
+	Expect(err).NotTo(HaveOccurred(), "Should build kubeconfig")
+
+	scheme := runtime.NewScheme()
+	Expect(corev1.AddToScheme(scheme)).To(Succeed())
+	Expect(appsv1.AddToScheme(scheme)).To(Succeed())
+	Expect(githubv1alpha1.AddToScheme(scheme)).To(Succeed())
+
+	k8sClient, err = client.New(config, client.Options{Scheme: scheme})
+	Expect(err).NotTo(HaveOccurred(), "Should create controller-runtime client")
+})
 
 // TestE2E runs the end-to-end (e2e) test suite for GitHub Issue Operator authentication.
 // These tests assume the operator is already deployed and running in the cluster.

@@ -17,50 +17,17 @@ limitations under the License.
 package e2e
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 )
-
-var (
-	clientset *kubernetes.Clientset
-)
-
-var _ = BeforeEach(func() {
-	if k8sClient == nil {
-		ctx = context.Background()
-
-		config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			clientcmd.NewDefaultClientConfigLoadingRules(),
-			&clientcmd.ConfigOverrides{},
-		).ClientConfig()
-		Expect(err).NotTo(HaveOccurred(), "Should build kubeconfig")
-
-		clientset, err = kubernetes.NewForConfig(config)
-		Expect(err).NotTo(HaveOccurred(), "Should create clientset")
-
-		scheme := runtime.NewScheme()
-		Expect(corev1.AddToScheme(scheme)).To(Succeed())
-		Expect(appsv1.AddToScheme(scheme)).To(Succeed())
-		Expect(githubv1alpha1.AddToScheme(scheme)).To(Succeed())
-
-		k8sClient, err = client.New(config, client.Options{Scheme: scheme})
-		Expect(err).NotTo(HaveOccurred(), "Should create controller-runtime client")
-	}
-})
 
 var _ = Describe("GitHub Token Authentication", func() {
 	var (
@@ -70,7 +37,7 @@ var _ = Describe("GitHub Token Authentication", func() {
 	)
 
 	BeforeEach(func() {
-		timestamp = time.Now().UnixNano()
+		timestamp = time.Now().Unix()
 		crName = fmt.Sprintf("auth-%d", timestamp)
 		namespace = fmt.Sprintf("test-ns-%d", timestamp)
 
@@ -129,9 +96,6 @@ var _ = Describe("GitHub Token Authentication", func() {
 			Eventually(func() bool {
 				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed, utils.ReasonGitHubAPIError)
 			}, timeout, pollInterval).Should(BeTrue())
-
-			By("Restoring original auth configuration")
-			updateAuthConfiguration(secretName)
 		})
 	})
 })
