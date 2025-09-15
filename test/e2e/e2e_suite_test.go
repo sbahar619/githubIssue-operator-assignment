@@ -59,7 +59,6 @@ var _ = AfterSuite(func() {
 			return false
 		}
 
-		// Check if any issues are still being deleted (have finalizers)
 		for _, issue := range githubIssues.Items {
 			if issue.DeletionTimestamp != nil && len(issue.Finalizers) > 0 {
 				_, _ = fmt.Fprintf(GinkgoWriter, "Still waiting for finalizer cleanup: %s/%s\n",
