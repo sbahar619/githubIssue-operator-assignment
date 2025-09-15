@@ -24,6 +24,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -33,6 +34,45 @@ import (
 const (
 	FinalizerName = "github.shahaf.com/finalizer"
 )
+
+// GenerationChangedOrDeletionPredicate returns a predicate that allows events when:
+// 1. Generation changes (spec updates) - prevents unnecessary reconciliation on status updates
+// 2. DeletionTimestamp is set (deletion events) - ensures finalizers are processed
+// This maintains the performance benefits of GenerationChangedPredicate while fixing deletion handling.
+func GenerationChangedOrDeletionPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			// Allow if generation changed (spec update)
+			if e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration() {
+				return true
+			}
+			// Allow if deletion timestamp was set (deletion event)
+			oldDeletion := e.ObjectOld.GetDeletionTimestamp()
+			newDeletion := e.ObjectNew.GetDeletionTimestamp()
+			if oldDeletion == nil && newDeletion != nil {
+				// Log deletion event for debugging
+				logf.Log.Info("Deletion event detected - allowing reconciliation",
+					"name", e.ObjectNew.GetName(),
+					"namespace", e.ObjectNew.GetNamespace())
+				return true
+			}
+			// Block status-only updates
+			return false
+		},
+		CreateFunc: func(e event.CreateEvent) bool {
+			// Always allow create events
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			// Always allow delete events (though these are rare with finalizers)
+			return true
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			// Allow generic events (like periodic resync)
+			return true
+		},
+	}
+}
 
 // GithubIssueReconciler reconciles a GithubIssue object
 type GithubIssueReconciler struct {
@@ -86,7 +126,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 func (r *GithubIssueReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&githubv1alpha1.GithubIssue{}).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		WithEventFilter(GenerationChangedOrDeletionPredicate()).
 		Named("githubissue").
 		Complete(r)
 }
