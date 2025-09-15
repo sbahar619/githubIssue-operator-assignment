@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"time"
 
@@ -51,9 +50,16 @@ func deleteNamespace(name string) {
 }
 
 func getOperatorDeployment() (*appsv1.Deployment, error) {
-	deployment := &appsv1.Deployment{}
-	key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
-	err := k8sClient.Get(ctx, key, deployment)
+	var deployment *appsv1.Deployment
+	var err error
+
+	Eventually(func() error {
+		deployment = &appsv1.Deployment{}
+		key := types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace}
+		err = k8sClient.Get(ctx, key, deployment)
+		return err
+	}, time.Second*30, time.Second*2).Should(Succeed())
+
 	return deployment, err
 }
 
@@ -78,80 +84,4 @@ func hasConditionWithReason(cr *githubv1alpha1.GithubIssue, reasons ...string) b
 	}
 
 	return slices.Contains(reasons, condition.Reason)
-}
-
-func createGithubIssue(name, namespace string) *githubv1alpha1.GithubIssue {
-	cr := &githubv1alpha1.GithubIssue{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: githubv1alpha1.GithubIssueSpec{
-			Repo:  githubRepoURL,
-			Title: fmt.Sprintf("auth-%d", time.Now().Unix()),
-			Description: func() *string {
-				desc := "E2E authentication test"
-				return &desc
-			}(),
-		},
-	}
-	Expect(k8sClient.Create(ctx, cr)).To(Succeed())
-	return cr
-}
-
-func createTokenSecret(secretName, tokenValue string) {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: operatorNamespace,
-		},
-		Type: corev1.SecretTypeOpaque,
-		StringData: map[string]string{
-			"token": tokenValue,
-		},
-	}
-	Expect(k8sClient.Create(ctx, secret)).To(Succeed())
-}
-
-func deleteTokenSecret(secretName string) {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: operatorNamespace,
-		},
-	}
-	_ = k8sClient.Delete(ctx, secret)
-}
-
-func updateControllerSecret(secretName string) {
-	Eventually(func() error {
-		deployment, err := getOperatorDeployment()
-		if err != nil {
-			return err
-		}
-
-		deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name = secretName
-
-		return k8sClient.Update(ctx, deployment)
-	}, time.Second*30, time.Second*2).Should(Succeed())
-}
-
-func waitForControllerReady() {
-	Eventually(func() bool {
-		return isControllerReady()
-	}, time.Minute*3, time.Second*10).Should(BeTrue())
-}
-
-func newGithubIssue(name, namespace, title string, description *string) *githubv1alpha1.GithubIssue {
-	return &githubv1alpha1.GithubIssue{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: githubv1alpha1.GithubIssueSpec{
-			Repo:        githubRepoURL,
-			Title:       title,
-			Description: description,
-		},
-	}
 }

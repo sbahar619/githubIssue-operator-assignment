@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
@@ -65,3 +66,17 @@ var _ = Describe("GitHub Issue Creation and Update", Ordered, func() {
 	})
 
 })
+
+func newGithubIssue(name, namespace, title string, description *string) *githubv1alpha1.GithubIssue {
+	return &githubv1alpha1.GithubIssue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: githubv1alpha1.GithubIssueSpec{
+			Repo:        githubRepoURL,
+			Title:       title,
+			Description: description,
+		},
+	}
+}

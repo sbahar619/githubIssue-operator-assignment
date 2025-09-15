@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -83,7 +84,6 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 		By("Ensuring controller is restored to valid configuration")
 		updateControllerSecret(secretName)
-		waitForControllerReady()
 	})
 
 	Context("Token Retrieval Error", func() {
@@ -95,9 +95,6 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Updating controller secret")
 			updateControllerSecret(emptySecretName)
-
-			By("Waiting for controller to restart")
-			waitForControllerReady()
 
 			By("Creating GithubIssue CR")
 			cr := createGithubIssue(crName, namespace)
@@ -126,9 +123,6 @@ var _ = Describe("GitHub Token Authentication", func() {
 			By("Updating controller secret")
 			updateControllerSecret(invalidSecretName)
 
-			By("Waiting for controller to restart")
-			waitForControllerReady()
-
 			By("Creating GithubIssue CR")
 			cr := createGithubIssue(crName, namespace)
 
@@ -144,3 +138,62 @@ var _ = Describe("GitHub Token Authentication", func() {
 		})
 	})
 })
+
+func createGithubIssue(name, namespace string) *githubv1alpha1.GithubIssue {
+	cr := &githubv1alpha1.GithubIssue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: githubv1alpha1.GithubIssueSpec{
+			Repo:  githubRepoURL,
+			Title: fmt.Sprintf("auth-%d", time.Now().Unix()),
+			Description: func() *string {
+				desc := "E2E authentication test"
+				return &desc
+			}(),
+		},
+	}
+	Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+	return cr
+}
+
+func createTokenSecret(secretName, tokenValue string) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: operatorNamespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+		StringData: map[string]string{
+			"token": tokenValue,
+		},
+	}
+	Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+}
+
+func deleteTokenSecret(secretName string) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: operatorNamespace,
+		},
+	}
+	_ = k8sClient.Delete(ctx, secret)
+}
+
+func updateControllerSecret(secretName string) {
+	deployment, _ := getOperatorDeployment()
+	deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name = secretName
+	Expect(k8sClient.Update(ctx, deployment)).To(Succeed())
+
+	// Wait a moment for the update to propagate, then wait for controller to be ready
+	time.Sleep(time.Second * 5)
+	waitForControllerReady()
+}
+
+func waitForControllerReady() {
+	Eventually(func() bool {
+		return isControllerReady()
+	}, time.Minute*3, time.Second*10).Should(BeTrue())
+}
