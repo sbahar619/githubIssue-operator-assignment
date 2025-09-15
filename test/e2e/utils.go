@@ -65,45 +65,36 @@ func isControllerReady() bool {
 	return deployment.Status.ReadyReplicas == *deployment.Spec.Replicas
 }
 
-func hasConditionWithStatus(
-	cr *githubv1alpha1.GithubIssue,
-	expectedStatus metav1.ConditionStatus,
-	reasons ...string,
-) bool {
-	condition := getReadyCondition(cr)
-	return condition != nil &&
-		condition.Status == expectedStatus &&
-		slices.Contains(reasons, condition.Reason)
-}
-
-func getReadyCondition(cr *githubv1alpha1.GithubIssue) *metav1.Condition {
+func hasConditionWithReason(cr *githubv1alpha1.GithubIssue, reasons ...string) bool {
 	key := types.NamespacedName{Name: cr.Name, Namespace: cr.Namespace}
 	err := k8sClient.Get(ctx, key, cr)
 	if err != nil {
-		return nil
+		return false
 	}
 
-	return meta.FindStatusCondition(cr.Status.Conditions, "Ready")
+	condition := meta.FindStatusCondition(cr.Status.Conditions, "Ready")
+	if condition == nil {
+		return false
+	}
+
+	return slices.Contains(reasons, condition.Reason)
 }
 
-func newGithubIssue(name, namespace, title string, description *string) *githubv1alpha1.GithubIssue {
-	return &githubv1alpha1.GithubIssue{
+func createGithubIssue(name, namespace string) *githubv1alpha1.GithubIssue {
+	cr := &githubv1alpha1.GithubIssue{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
 		Spec: githubv1alpha1.GithubIssueSpec{
-			Title:       title,
-			Description: description,
-			Repo:        githubRepoURL,
+			Repo:  githubRepoURL,
+			Title: fmt.Sprintf("auth-%d", time.Now().Unix()),
+			Description: func() *string {
+				desc := "E2E authentication test"
+				return &desc
+			}(),
 		},
 	}
-}
-
-func createGithubIssue(name, namespace string) *githubv1alpha1.GithubIssue {
-	title := fmt.Sprintf("auth-%d", time.Now().Unix())
-	description := "E2E authentication test"
-	cr := newGithubIssue(name, namespace, title, &description)
 	Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 	return cr
 }
@@ -149,4 +140,18 @@ func waitForControllerReady() {
 	Eventually(func() bool {
 		return isControllerReady()
 	}, time.Minute*3, time.Second*10).Should(BeTrue())
+}
+
+func newGithubIssue(name, namespace, title string, description *string) *githubv1alpha1.GithubIssue {
+	return &githubv1alpha1.GithubIssue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: githubv1alpha1.GithubIssueSpec{
+			Repo:        githubRepoURL,
+			Title:       title,
+			Description: description,
+		},
+	}
 }
