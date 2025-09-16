@@ -122,7 +122,7 @@ func createTokenSecret(secretName, tokenValue string) {
 		},
 		Type: corev1.SecretTypeOpaque,
 		StringData: map[string]string{
-			"token": tokenValue,
+			tokenSecretKey: tokenValue,
 		},
 	}
 	Expect(k8sClient.Create(ctx, secret)).To(Succeed())

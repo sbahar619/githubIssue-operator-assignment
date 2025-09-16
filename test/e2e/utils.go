@@ -22,6 +22,7 @@ const (
 	deploymentName          = "github-issue-operator-controller-manager"
 	secretName              = "github-issue-operator-token-secret"
 	controllerContainerName = "manager"
+	tokenSecretKey          = "token"
 
 	// Test configuration
 	githubRepoURL     = "https://github.com/sbahar619/githubIssue-operator-assignment"
