@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -43,7 +42,7 @@ var _ = Describe("GitHub Issue Lifecycle (Create, Update, Delete)", Ordered, fun
 		By("Waiting for issue creation")
 		Eventually(func() bool {
 			return hasConditionWithReason(githubIssue, utils.ReasonIssueCreated)
-		}, time.Minute*2, time.Second*5).Should(BeTrue(), "Should create new issue")
+		}, timeout, pollInterval).Should(BeTrue(), "Should create new issue")
 	})
 
 	It("Should update GitHub issue when CR changes", func() {
@@ -66,7 +65,7 @@ var _ = Describe("GitHub Issue Lifecycle (Create, Update, Delete)", Ordered, fun
 			}
 			return githubIssue.Status.LastSyncTime != nil &&
 				githubIssue.Status.LastSyncTime.After(initialSyncTime.Time)
-		}, time.Minute*2, time.Second*5).Should(BeTrue(), "Should complete update with new sync time")
+		}, timeout, pollInterval).Should(BeTrue(), "Should complete update with new sync time")
 	})
 
 	It("Should close GitHub issue when CR is deleted", func() {
@@ -81,13 +80,13 @@ var _ = Describe("GitHub Issue Lifecycle (Create, Update, Delete)", Ordered, fun
 		By("Waiting for GitHub issue to be closed")
 		Eventually(func() bool {
 			return isGitHubIssueClosed(issueID)
-		}, time.Minute*2, time.Second*5).Should(BeTrue(), "GitHub issue should be closed")
+		}, timeout, pollInterval).Should(BeTrue(), "GitHub issue should be closed")
 
 		By("Waiting for CR deletion and finalizer cleanup")
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(githubIssue), githubIssue)
 			return err != nil
-		}, time.Minute*2, time.Second*5).Should(BeTrue(), "CR should be deleted")
+		}, timeout, pollInterval).Should(BeTrue(), "CR should be deleted")
 	})
 
 })
