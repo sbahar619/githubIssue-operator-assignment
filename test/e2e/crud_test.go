@@ -1,13 +1,8 @@
 package e2e
 
 import (
-	"fmt"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
@@ -90,42 +85,6 @@ var _ = Describe("GitHub Issue Lifecycle (Create, Update, Delete)", Ordered, fun
 	})
 
 })
-
-func newGithubIssue(name, namespace, title string, description *string) *githubv1alpha1.GithubIssue {
-	return &githubv1alpha1.GithubIssue{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: githubv1alpha1.GithubIssueSpec{
-			Repo:        githubRepoURL,
-			Title:       title,
-			Description: description,
-		},
-	}
-}
-
-func getOperatorToken() (string, error) {
-	deployment, err := getOperatorDeployment()
-	if err != nil {
-		return "", err
-	}
-
-	secretName := deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name
-
-	secret := &corev1.Secret{}
-	key := types.NamespacedName{Name: secretName, Namespace: operatorNamespace}
-	if err := k8sClient.Get(ctx, key, secret); err != nil {
-		return "", err
-	}
-
-	tokenBytes, exists := secret.Data[tokenSecretKey]
-	if !exists {
-		return "", fmt.Errorf("token not found in secret")
-	}
-
-	return string(tokenBytes), nil
-}
 
 func isGitHubIssueClosed(issueID int) bool {
 	token, err := getOperatorToken()

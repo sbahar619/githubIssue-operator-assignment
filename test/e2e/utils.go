@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
@@ -85,4 +86,40 @@ func hasConditionWithReason(cr *githubv1alpha1.GithubIssue, reasons ...string) b
 	}
 
 	return slices.Contains(reasons, condition.Reason)
+}
+
+func newGithubIssue(name, namespace, title string, description *string) *githubv1alpha1.GithubIssue {
+	return &githubv1alpha1.GithubIssue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: githubv1alpha1.GithubIssueSpec{
+			Repo:        githubRepoURL,
+			Title:       title,
+			Description: description,
+		},
+	}
+}
+
+func getOperatorToken() (string, error) {
+	deployment, err := getOperatorDeployment()
+	if err != nil {
+		return "", err
+	}
+
+	secretName := deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.SecretKeyRef.Name
+
+	secret := &corev1.Secret{}
+	key := types.NamespacedName{Name: secretName, Namespace: operatorNamespace}
+	if err := k8sClient.Get(ctx, key, secret); err != nil {
+		return "", err
+	}
+
+	tokenBytes, exists := secret.Data[tokenSecretKey]
+	if !exists {
+		return "", fmt.Errorf("token not found in secret")
+	}
+
+	return string(tokenBytes), nil
 }
