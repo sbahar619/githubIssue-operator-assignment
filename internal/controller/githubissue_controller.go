@@ -23,6 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
@@ -45,19 +47,35 @@ type GithubIssueReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
 	var githubIssue githubv1alpha1.GithubIssue
 	if err := r.Get(ctx, req.NamespacedName, &githubIssue); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if !controllerutil.ContainsFinalizer(&githubIssue, FinalizerName) {
+		controllerutil.AddFinalizer(&githubIssue, FinalizerName)
+		if err := r.Update(ctx, &githubIssue); err != nil {
+			log.Error(err, "Failed to add finalizer", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
+			return ctrl.Result{}, err
+		}
+	}
+
 	if githubIssue.DeletionTimestamp != nil {
+		log.Info("Deleting GitHub issue", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
 		if err := r.handleDeletion(ctx, &githubIssue); err != nil {
 			return ctrl.Result{RequeueAfter: time.Minute}, err
+		}
+		controllerutil.RemoveFinalizer(&githubIssue, FinalizerName)
+		if err := r.Update(ctx, &githubIssue); err != nil {
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
 
 	if err := r.handleCreateOrUpdate(ctx, &githubIssue); err != nil {
+		log.Error(err, "Failed to reconcile GitHub issue", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
 		return ctrl.Result{RequeueAfter: time.Minute}, err
 	}
 
