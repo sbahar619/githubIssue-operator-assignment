@@ -22,7 +22,6 @@ func (r *GithubIssueReconciler) newGitHubClient(ctx context.Context, cr *githubv
 
 	githubClient, err := github.NewClient(token, cr.Spec.Repo)
 	if err != nil {
-		utils.HandleError(ctx, r.Client, cr, err)
 		return nil, err
 	}
 
