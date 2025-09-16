@@ -8,6 +8,7 @@ import (
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
@@ -65,7 +66,8 @@ func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1
 		}
 	}
 
-	return nil
+	controllerutil.RemoveFinalizer(cr, FinalizerName)
+	return r.Update(ctx, cr)
 }
 
 func (r *GithubIssueReconciler) updateStatusFromGitHub(cr *githubv1alpha1.GithubIssue, issue *gogithub.Issue) error {

@@ -404,7 +404,7 @@ func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1
             return err
         }
         
-        if err := r.cleanupGitHubIssue(ctx, githubClient, cr); err != nil {
+        if err := r.closeGitHubIssue(ctx, githubClient, cr); err != nil {
             return err
         }
     }
@@ -412,7 +412,7 @@ func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1
     return nil
 }
 
-func (r *GithubIssueReconciler) cleanupGitHubIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
+func (r *GithubIssueReconciler) closeGitHubIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
     log := logf.FromContext(ctx)
     
     // Close the GitHub issue
