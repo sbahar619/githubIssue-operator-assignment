@@ -13,56 +13,32 @@ import (
 )
 
 const (
-	// Condition Types
 	ConditionTypeReady = "Ready"
 
-	// Success Reasons
 	ReasonIssueCreated      = "IssueCreated"
 	ReasonIssueSynchronized = "IssueSynchronized"
 
-	// Intermediate Reasons
 	ReasonIssueFound     = "IssueFound"
 	ReasonUpdateRequired = "UpdateRequired"
 
-	// Error Reasons
 	ReasonAuthenticationFailed = "AuthenticationFailed"
 	ReasonGitHubAPIError       = "GitHubAPIError"
 	ReasonExternallyOwnedIssue = "ExternallyOwnedIssue"
 	ReasonConflictedOwnership  = "ConflictedOwnership"
 )
 
-func HandleTokenRetrievalError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {
+func HandleError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {
+	if githubError, ok := err.(*github.GitHubError); ok {
+		message := fmt.Sprintf("GitHub API error: %s", githubError.Message)
+		SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonGitHubAPIError, message)
+		return
+	}
+
 	clearGithubStatus(githubIssue)
-	message := fmt.Sprintf("GitHub token not available: %s", err.Error())
+	message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
 	SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
 }
 
-func HandleGitHubAPIError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) bool {
-	if githubError, ok := err.(*github.GitHubError); ok {
-		if githubError.IsRetryable {
-			handleRetryableGitHubError(ctx, k8sClient, githubIssue, githubError)
-		} else {
-			handleNonRetryableGitHubError(ctx, k8sClient, githubIssue, githubError)
-		}
-		return true
-	}
-
-	message := fmt.Sprintf("GitHub API error: %s", err.Error())
-	SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonGitHubAPIError, message)
-	return false
-}
-
-func handleRetryableGitHubError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, githubError *github.GitHubError) {
-	message := fmt.Sprintf("GitHub API temporarily unavailable: %s", githubError.Message)
-	SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonGitHubAPIError, message)
-}
-
-func handleNonRetryableGitHubError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, githubError *github.GitHubError) {
-	message := fmt.Sprintf("GitHub API error: %s", githubError.Message)
-	SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonGitHubAPIError, message)
-}
-
-// clearGithubStatus clears all GitHub-related status fields
 func clearGithubStatus(githubIssue *githubv1alpha1.GithubIssue) {
 	githubIssue.Status.IssueID = nil
 	githubIssue.Status.URL = nil

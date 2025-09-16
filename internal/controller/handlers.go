@@ -31,13 +31,13 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 
 	existingIssue, err := r.getExistingIssue(ctx, githubClient, cr)
 	if err != nil {
-		utils.HandleGitHubAPIError(ctx, r.Client, cr, err)
+		utils.HandleError(ctx, r.Client, cr, err)
 		return err
 	}
 
 	if existingIssue != nil {
 		if err := r.HandleOwnership(ctx, githubClient, existingIssue, cr); err != nil {
-			utils.HandleGitHubAPIError(ctx, r.Client, cr, err)
+			utils.HandleError(ctx, r.Client, cr, err)
 			return err
 		}
 
