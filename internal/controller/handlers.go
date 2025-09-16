@@ -8,9 +8,22 @@ import (
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
+	log := logf.FromContext(ctx)
+
+	if !controllerutil.ContainsFinalizer(cr, FinalizerName) {
+		controllerutil.AddFinalizer(cr, FinalizerName)
+		if err := r.Update(ctx, cr); err != nil {
+			log.Error(err, "Failed to add finalizer", "name", cr.Name, "namespace", cr.Namespace)
+			return err
+		}
+		return nil
+	}
+
 	githubClient, err := r.newGitHubClient(ctx, cr)
 	if err != nil {
 		utils.SetCondition(ctx, r.Client, cr,
@@ -31,22 +44,26 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 	existingIssue, err := r.getExistingIssue(ctx, githubClient, cr)
 	if err != nil {
 		utils.HandleGitHubAPIError(ctx, r.Client, cr, err)
+		log.Error(err, "Failed to reconcile GitHub issue", "name", cr.Name, "namespace", cr.Namespace)
 		return err
 	}
 
 	if existingIssue != nil {
 		if err := r.HandleOwnership(ctx, githubClient, existingIssue, cr); err != nil {
 			utils.HandleGitHubAPIError(ctx, r.Client, cr, err)
+			log.Error(err, "Failed to reconcile GitHub issue", "name", cr.Name, "namespace", cr.Namespace)
 			return err
 		}
 
 		if err := r.handleUpdateIssue(ctx, githubClient, cr, existingIssue); err != nil {
+			log.Error(err, "Failed to reconcile GitHub issue", "name", cr.Name, "namespace", cr.Namespace)
 			return err
 		}
 		return nil
 	}
 
 	if err := r.createNewIssue(ctx, githubClient, cr); err != nil {
+		log.Error(err, "Failed to reconcile GitHub issue", "name", cr.Name, "namespace", cr.Namespace)
 		return err
 	}
 
@@ -54,18 +71,22 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 }
 
 func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
+	log := logf.FromContext(ctx)
+	log.Info("Deleting GitHub issue", "name", cr.Name, "namespace", cr.Namespace)
+
 	if cr.Status.IssueID != nil {
 		githubClient, err := r.newGitHubClient(ctx, cr)
 		if err != nil {
 			return err
 		}
 
-		if err := r.cleanupGitHubIssue(ctx, githubClient, cr); err != nil {
+		if err := r.closeGitHubIssue(ctx, githubClient, cr); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	controllerutil.RemoveFinalizer(cr, FinalizerName)
+	return r.Update(ctx, cr)
 }
 
 func (r *GithubIssueReconciler) updateStatusFromGitHub(cr *githubv1alpha1.GithubIssue, issue *gogithub.Issue) error {
