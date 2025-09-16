@@ -196,7 +196,7 @@ func (r *GithubIssueReconciler) isUpdateNeeded(cr *githubv1alpha1.GithubIssue, i
 	return specDesc != githubDesc
 }
 
-func (r *GithubIssueReconciler) cleanupGitHubIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
+func (r *GithubIssueReconciler) closeGitHubIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
 	log := logf.FromContext(ctx)
 
 	if _, err := githubClient.CloseIssue(ctx, *cr.Status.IssueID); err != nil {
