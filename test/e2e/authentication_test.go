@@ -53,23 +53,43 @@ var _ = Describe("GitHub Token Authentication", func() {
 		updateAuthConfiguration(secretName)
 	})
 
-	Context("Authentication Failure", func() {
-		It("should handle empty token gracefully", func() {
+	Context("when GitHub token is not configured properly", func() {
+		It("should report authentication failure when token is missing", func() {
 			emptySecretName := fmt.Sprintf("github-issue-operator-secret-empty-%d", timestamp)
 
-			By("Applying empty token secret")
+			By("Configuring operator without GitHub token")
 			createTokenSecret(emptySecretName, "")
 			DeferCleanup(deleteTokenSecret, emptySecretName)
 
-			By("Updating auth configuration")
+			By("Applying the empty token configuration")
 			updateAuthConfiguration(emptySecretName)
 
-			By("Creating GithubIssue CR")
+			By("Creating a GitHub issue request")
 			cr := createGithubIssue(crName, namespace)
 
-			By("Verifying token retrieval failure is handled")
+			By("Expecting authentication failure to be reported")
 			Eventually(func() bool {
 				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed)
+			}, timeout, pollInterval).Should(BeTrue())
+		})
+
+		It("should report GitHub API error when token is invalid", func() {
+			invalidToken := "invalid_token_12345"
+			invalidSecretName := fmt.Sprintf("github-issue-operator-secret-invalid-%d", timestamp)
+
+			By("Configuring operator with invalid GitHub token")
+			createTokenSecret(invalidSecretName, invalidToken)
+			DeferCleanup(deleteTokenSecret, invalidSecretName)
+
+			By("Applying the invalid token configuration")
+			updateAuthConfiguration(invalidSecretName)
+
+			By("Creating a GitHub issue request")
+			cr := createGithubIssue(crName, namespace)
+
+			By("Expecting GitHub API error to be reported")
+			Eventually(func() bool {
+				return hasConditionWithReason(cr, utils.ReasonGitHubAPIError)
 			}, timeout, pollInterval).Should(BeTrue())
 		})
 	})
