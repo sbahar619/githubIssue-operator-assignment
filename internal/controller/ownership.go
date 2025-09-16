@@ -21,7 +21,8 @@ const (
 func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClient *github.Client, issue *gogithub.Issue, cr *githubv1alpha1.GithubIssue) error {
 	labels, err := githubClient.ListIssueLabels(ctx, issue.GetNumber())
 	if err != nil {
-		return fmt.Errorf("failed to retrieve issue labels: %w", err)
+		utils.HandleError(ctx, r.Client, cr, err)
+		return err
 	}
 
 	if !hasOperatorManagedLabel(labels) {
