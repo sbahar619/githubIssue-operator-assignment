@@ -129,12 +129,9 @@ var _ = Describe("GitHub Client Operations", func() {
 			BeforeEach(func() {
 				mockedHTTPClientExisting := mock.NewMockedHTTPClient(
 					mock.WithRequestMatch(
-						mock.GetSearchIssues,
-						github.IssuesSearchResult{
-							Total: github.Int(1),
-							Issues: []*github.Issue{
-								{ID: github.Int64(1), Title: github.String(existingTitle), State: github.String(IssueStateOpen)},
-							},
+						mock.GetReposIssuesByOwnerByRepo,
+						[]*github.Issue{
+							{ID: github.Int64(1), Title: github.String(existingTitle), State: github.String(IssueStateOpen)},
 						},
 					),
 				)
@@ -161,11 +158,8 @@ var _ = Describe("GitHub Client Operations", func() {
 			BeforeEach(func() {
 				mockedHTTPClientNonExistent := mock.NewMockedHTTPClient(
 					mock.WithRequestMatch(
-						mock.GetSearchIssues,
-						github.IssuesSearchResult{
-							Total:  github.Int(0),
-							Issues: []*github.Issue{},
-						},
+						mock.GetReposIssuesByOwnerByRepo,
+						[]*github.Issue{},
 					),
 				)
 
