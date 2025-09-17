@@ -144,13 +144,13 @@ var _ = Describe("Issue Ownership Management", func() {
 			return err != nil
 		}, timeout, pollInterval).Should(BeTrue())
 
-		By("Create new GithubIssue resource with original title")
-		secondCR := newGithubIssue("lifecycle-test-2", namespace, title)
+		By("Create new GithubIssue resource with updated title")
+		secondCR := newGithubIssue("lifecycle-test-2", namespace, updatedTitle)
 		Expect(k8sClient.Create(ctx, secondCR)).To(Succeed())
 
 		By("Verify successful creation without ownership conflicts")
 		Eventually(func() bool {
-			return hasConditionWithReason(secondCR, utils.ReasonIssueCreated)
+			return hasConditionWithReason(secondCR, utils.ReasonIssueSynchronized)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
 })
