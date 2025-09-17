@@ -11,7 +11,7 @@ import (
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 )
 
-var _ = Describe("GitHub Issue Ownership", func() {
+var _ = Describe("Issue Ownership Management", func() {
 	var namespace string
 	var timestamp int64
 
@@ -19,61 +19,64 @@ var _ = Describe("GitHub Issue Ownership", func() {
 		timestamp = time.Now().Unix()
 		namespace = fmt.Sprintf("test-ns-%d", timestamp)
 
-		By("Creating test namespace")
+		By("Setup test environment")
 		createNamespace(namespace)
 	})
 
 	AfterEach(func() {
-		By("Cleaning up test namespace")
+		By("Clean up test resources")
 		deleteNamespace(namespace)
 	})
 
-	It("Should detect externally owned issue", func() {
-		title := fmt.Sprintf("External-Issue-Test-%d", timestamp)
+	It("Should respect existing GitHub issues created outside the operator", func() {
+		title := fmt.Sprintf("Manual-Issue-%d", timestamp)
 
-		By("Creating GitHub issue directly without operator labels")
+		By("Create external GitHub issue")
 		token, err := getOperatorToken()
 		Expect(err).NotTo(HaveOccurred())
 		githubClient, err := github.NewClient(token, githubRepoURL)
 		Expect(err).NotTo(HaveOccurred())
 
-		issue, err := githubClient.CreateIssue(ctx, title, "External issue")
+		issue, err := githubClient.CreateIssue(ctx, title, "This issue was created manually by a user")
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(githubClient.CloseIssue, ctx, issue.GetNumber())
 
-		By("Waiting for GitHub search API to index the new issue")
-		time.Sleep(time.Second * 10)
+		By("Verify external issue exists")
+		Eventually(func() bool {
+			foundIssue, err := githubClient.GetIssueByTitle(ctx, title)
+			return err == nil && foundIssue != nil
+		}, timeout, pollInterval).Should(BeTrue())
 
-		By("Creating CR with same title")
-		crName := fmt.Sprintf("external-test-%d", timestamp)
+		By("Create GithubIssue resource with same title")
+		crName := fmt.Sprintf("manual-issue-%d", timestamp)
 		cr := newGithubIssue(crName, namespace, title)
 		Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
-		By("Expecting external ownership detection")
+		By("Verify external ownership is detected")
 		Eventually(func() bool {
 			return hasConditionWithReason(cr, utils.ReasonExternallyOwnedIssue)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
 
-	It("Should detect conflicted ownership when issue owned by different CR", func() {
-		title := fmt.Sprintf("Conflicted-Ownership-Test-%d", timestamp)
+	It("Should prevent multiple resources from claiming the same GitHub issue", func() {
+		title := fmt.Sprintf("Shared-Issue-Title-%d", timestamp)
 
-		By("Creating first CR to establish ownership")
-		ownerCR := newGithubIssue("owner-cr", namespace, title)
-		Expect(k8sClient.Create(ctx, ownerCR)).To(Succeed())
+		By("Create first GithubIssue resource")
+		firstResource := newGithubIssue("team-a-issue", namespace, title)
+		Expect(k8sClient.Create(ctx, firstResource)).To(Succeed())
 
-		By("Waiting for owner CR to create the issue successfully")
+		By("Verify first issue is created successfully")
 		Eventually(func() bool {
-			return hasConditionWithReason(ownerCR, utils.ReasonIssueCreated)
+			return hasConditionWithReason(firstResource, utils.ReasonIssueCreated)
 		}, timeout, pollInterval).Should(BeTrue())
 
-		By("Creating conflicting CR with same title but different name")
-		conflictCR := newGithubIssue("conflict-cr", namespace, title)
-		Expect(k8sClient.Create(ctx, conflictCR)).To(Succeed())
+		By("Create second GithubIssue resource with same title")
+		secondResource := newGithubIssue("team-b-issue", namespace, title)
+		Expect(k8sClient.Create(ctx, secondResource)).To(Succeed())
 
-		By("Expecting conflicted ownership detection")
+		By("Verify ownership conflict is detected")
 		Eventually(func() bool {
-			return hasConditionWithReason(conflictCR, utils.ReasonConflictedOwnership)
+			return hasConditionWithReason(secondResource, utils.ReasonConflictedOwnership)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
 })
