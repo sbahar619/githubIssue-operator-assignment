@@ -88,16 +88,15 @@ func hasConditionWithReason(cr *githubv1alpha1.GithubIssue, reasons ...string) b
 	return slices.Contains(reasons, condition.Reason)
 }
 
-func newGithubIssue(name, namespace, title string, description *string) *githubv1alpha1.GithubIssue {
+func newGithubIssue(name, namespace, title string) *githubv1alpha1.GithubIssue {
 	return &githubv1alpha1.GithubIssue{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
 		Spec: githubv1alpha1.GithubIssueSpec{
-			Repo:        githubRepoURL,
-			Title:       title,
-			Description: description,
+			Repo:  githubRepoURL,
+			Title: title,
 		},
 	}
 }

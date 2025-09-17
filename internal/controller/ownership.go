@@ -30,7 +30,7 @@ func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClien
 			metav1.ConditionFalse,
 			utils.ReasonExternallyOwnedIssue,
 			"Issue exists but is not managed by operator")
-		return nil
+		return fmt.Errorf("issue is externally owned")
 	}
 
 	expectedNS := cr.Namespace
@@ -45,7 +45,7 @@ func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClien
 		metav1.ConditionFalse,
 		utils.ReasonConflictedOwnership,
 		fmt.Sprintf("Issue owned by different CR: expected %s/%s, actual %s/%s", expectedNS, expectedCR, actualNS, actualCR))
-	return nil
+	return fmt.Errorf("issue owned by different CR")
 }
 
 func hasOperatorManagedLabel(labels []string) bool {

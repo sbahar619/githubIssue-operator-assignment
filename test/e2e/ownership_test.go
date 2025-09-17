@@ -41,9 +41,12 @@ var _ = Describe("GitHub Issue Ownership", func() {
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(githubClient.CloseIssue, ctx, issue.GetNumber())
 
+		By("Waiting for GitHub search API to index the new issue")
+		time.Sleep(time.Second * 10)
+
 		By("Creating CR with same title")
 		crName := fmt.Sprintf("external-test-%d", timestamp)
-		cr := newGithubIssue(crName, namespace, title, nil)
+		cr := newGithubIssue(crName, namespace, title)
 		Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
 		By("Expecting external ownership detection")
@@ -56,7 +59,7 @@ var _ = Describe("GitHub Issue Ownership", func() {
 		title := fmt.Sprintf("Conflicted-Ownership-Test-%d", timestamp)
 
 		By("Creating first CR to establish ownership")
-		ownerCR := newGithubIssue("owner-cr", namespace, title, nil)
+		ownerCR := newGithubIssue("owner-cr", namespace, title)
 		Expect(k8sClient.Create(ctx, ownerCR)).To(Succeed())
 
 		By("Waiting for owner CR to create the issue successfully")
@@ -65,7 +68,7 @@ var _ = Describe("GitHub Issue Ownership", func() {
 		}, timeout, pollInterval).Should(BeTrue())
 
 		By("Creating conflicting CR with same title but different name")
-		conflictCR := newGithubIssue("conflict-cr", namespace, title, nil)
+		conflictCR := newGithubIssue("conflict-cr", namespace, title)
 		Expect(k8sClient.Create(ctx, conflictCR)).To(Succeed())
 
 		By("Expecting conflicted ownership detection")

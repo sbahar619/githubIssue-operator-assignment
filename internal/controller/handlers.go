@@ -30,8 +30,8 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 
 	if existingIssue != nil {
 		if err := r.HandleOwnership(ctx, githubClient, existingIssue, cr); err != nil {
-			utils.HandleError(ctx, r.Client, cr, err)
-			return err
+			// Ownership conflict detected - condition already set, don't proceed with update
+			return nil
 		}
 
 		if err := r.handleUpdateIssue(ctx, githubClient, cr, existingIssue); err != nil {

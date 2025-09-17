@@ -1,6 +1,9 @@
 package e2e
 
 import (
+	"fmt"
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,16 +18,17 @@ var _ = Describe("GitHub Issue Lifecycle (Create, Update, Delete)", Ordered, fun
 	var githubIssue *githubv1alpha1.GithubIssue
 
 	BeforeAll(func() {
-		crName = "update-test"
-		namespace = "test-ns"
-		initialTitle = "E2E-Test-Initial"
-		updatedTitle = "E2E-Test-Updated"
+		timestamp := time.Now().Unix()
+		crName = fmt.Sprintf("update-test-%d", timestamp)
+		namespace = fmt.Sprintf("test-ns-%d", timestamp)
+		initialTitle = fmt.Sprintf("E2E-Test-Initial-%d", timestamp)
+		updatedTitle = fmt.Sprintf("E2E-Test-Updated-%d", timestamp)
 
 		By("Creating test namespace")
 		createNamespace(namespace)
 
 		By("Creating GitHub issue CR")
-		githubIssue = newGithubIssue(crName, namespace, initialTitle, nil)
+		githubIssue = newGithubIssue(crName, namespace, initialTitle)
 		Expect(k8sClient.Create(ctx, githubIssue)).To(Succeed())
 	})
 
