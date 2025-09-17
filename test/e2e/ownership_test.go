@@ -108,7 +108,7 @@ var _ = Describe("Issue Ownership Management", func() {
 
 		By("Verify successful creation without ownership conflicts")
 		Eventually(func() bool {
-			return hasConditionWithReason(secondCR, utils.ReasonIssueCreated)
+			return hasConditionWithReason(secondCR, utils.ReasonIssueSynchronized)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
 
