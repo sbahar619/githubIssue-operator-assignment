@@ -51,4 +51,26 @@ var _ = Describe("GitHub Issue Ownership", func() {
 			return hasConditionWithReason(cr, utils.ReasonExternallyOwnedIssue)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
+
+	It("Should detect conflicted ownership when issue owned by different CR", func() {
+		title := fmt.Sprintf("Conflicted-Ownership-Test-%d", timestamp)
+
+		By("Creating first CR to establish ownership")
+		ownerCR := newGithubIssue("owner-cr", namespace, title, nil)
+		Expect(k8sClient.Create(ctx, ownerCR)).To(Succeed())
+
+		By("Waiting for owner CR to create the issue successfully")
+		Eventually(func() bool {
+			return hasConditionWithReason(ownerCR, utils.ReasonIssueCreated)
+		}, timeout, pollInterval).Should(BeTrue())
+
+		By("Creating conflicting CR with same title but different name")
+		conflictCR := newGithubIssue("conflict-cr", namespace, title, nil)
+		Expect(k8sClient.Create(ctx, conflictCR)).To(Succeed())
+
+		By("Expecting conflicted ownership detection")
+		Eventually(func() bool {
+			return hasConditionWithReason(conflictCR, utils.ReasonConflictedOwnership)
+		}, timeout, pollInterval).Should(BeTrue())
+	})
 })
