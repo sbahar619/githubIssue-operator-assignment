@@ -109,7 +109,7 @@ func (c *Client) GetIssueByID(ctx context.Context, issueNumber int) (*github.Iss
 }
 
 func (c *Client) GetIssueByTitle(ctx context.Context, title string) (*github.Issue, error) {
-	query := fmt.Sprintf(`"%s" in:title repo:%s/%s is:issue`,
+	query := fmt.Sprintf(`"%s" in:title repo:%s/%s is:issue state:all`,
 		title, c.repo.Owner, c.repo.Name)
 
 	result, _, err := c.githubClient.Search.Issues(ctx, query, &github.SearchOptions{
