@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/github"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
@@ -77,6 +78,79 @@ var _ = Describe("Issue Ownership Management", func() {
 		By("Verify ownership conflict is detected")
 		Eventually(func() bool {
 			return hasConditionWithReason(secondResource, utils.ReasonConflictedOwnership)
+		}, timeout, pollInterval).Should(BeTrue())
+	})
+
+	It("Should allow recreation after deletion without ownership conflicts", func() {
+		title := fmt.Sprintf("Recreate-Test-%d", timestamp)
+
+		By("Create first GithubIssue resource")
+		firstCR := newGithubIssue("recreate-test", namespace, title)
+		Expect(k8sClient.Create(ctx, firstCR)).To(Succeed())
+
+		By("Verify first issue is created successfully")
+		Eventually(func() bool {
+			return hasConditionWithReason(firstCR, utils.ReasonIssueCreated)
+		}, timeout, pollInterval).Should(BeTrue())
+
+		By("Delete the GithubIssue resource")
+		Expect(k8sClient.Delete(ctx, firstCR)).To(Succeed())
+
+		By("Verify resource is fully deleted")
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(firstCR), firstCR)
+			return err != nil
+		}, timeout, pollInterval).Should(BeTrue())
+
+		By("Create new GithubIssue resource with same title")
+		secondCR := newGithubIssue("recreate-test-2", namespace, title)
+		Expect(k8sClient.Create(ctx, secondCR)).To(Succeed())
+
+		By("Verify successful creation without ownership conflicts")
+		Eventually(func() bool {
+			return hasConditionWithReason(secondCR, utils.ReasonIssueCreated)
+		}, timeout, pollInterval).Should(BeTrue())
+	})
+
+	It("Should allow recreation after full lifecycle without ownership conflicts", func() {
+		title := fmt.Sprintf("Lifecycle-Test-%d", timestamp)
+		updatedTitle := fmt.Sprintf("Lifecycle-Updated-%d", timestamp)
+
+		By("Create first GithubIssue resource")
+		firstCR := newGithubIssue("lifecycle-test", namespace, title)
+		Expect(k8sClient.Create(ctx, firstCR)).To(Succeed())
+
+		By("Verify first issue is created successfully")
+		Eventually(func() bool {
+			return hasConditionWithReason(firstCR, utils.ReasonIssueCreated)
+		}, timeout, pollInterval).Should(BeTrue())
+
+		By("Update the GithubIssue resource")
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(firstCR), firstCR)).To(Succeed())
+		firstCR.Spec.Title = updatedTitle
+		Expect(k8sClient.Update(ctx, firstCR)).To(Succeed())
+
+		By("Verify issue is updated successfully")
+		Eventually(func() bool {
+			return hasConditionWithReason(firstCR, utils.ReasonIssueSynchronized)
+		}, timeout, pollInterval).Should(BeTrue())
+
+		By("Delete the GithubIssue resource")
+		Expect(k8sClient.Delete(ctx, firstCR)).To(Succeed())
+
+		By("Verify resource is fully deleted")
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(firstCR), firstCR)
+			return err != nil
+		}, timeout, pollInterval).Should(BeTrue())
+
+		By("Create new GithubIssue resource with original title")
+		secondCR := newGithubIssue("lifecycle-test-2", namespace, title)
+		Expect(k8sClient.Create(ctx, secondCR)).To(Succeed())
+
+		By("Verify successful creation without ownership conflicts")
+		Eventually(func() bool {
+			return hasConditionWithReason(secondCR, utils.ReasonIssueCreated)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
 })
