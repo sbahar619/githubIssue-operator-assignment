@@ -21,7 +21,8 @@ const (
 func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClient *github.Client, issue *gogithub.Issue, cr *githubv1alpha1.GithubIssue) error {
 	labels, err := githubClient.ListIssueLabels(ctx, issue.GetNumber())
 	if err != nil {
-		utils.HandleError(ctx, r.Client, cr, err)
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		utils.SetCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
 		return err
 	}
 

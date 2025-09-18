@@ -18,19 +18,20 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 	}
 
 	if err := githubClient.ValidateAuthentication(ctx); err != nil {
-		utils.HandleError(ctx, r.Client, cr, err)
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		utils.SetCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
 		return err
 	}
 
 	existingIssue, err := r.getExistingIssue(ctx, githubClient, cr)
 	if err != nil {
-		utils.HandleError(ctx, r.Client, cr, err)
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		utils.SetCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
 		return err
 	}
 
 	if existingIssue != nil {
 		if err := r.HandleOwnership(ctx, githubClient, existingIssue, cr); err != nil {
-			// Ownership conflict detected - condition already set, don't proceed with update
 			return nil
 		}
 

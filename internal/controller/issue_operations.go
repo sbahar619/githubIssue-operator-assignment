@@ -16,7 +16,9 @@ import (
 func (r *GithubIssueReconciler) newGitHubClient(ctx context.Context, cr *githubv1alpha1.GithubIssue) (*github.Client, error) {
 	token, err := auth.GetGitHubToken()
 	if err != nil {
-		utils.HandleError(ctx, r.Client, cr, err)
+		utils.ClearGithubStatus(cr)
+		message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
+		utils.SetCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonAuthenticationFailed, message)
 		return nil, err
 	}
 
@@ -117,7 +119,8 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 	if existingIssue.GetState() == "closed" {
 		log.Info("Reopening closed GitHub issue", "issueID", existingIssue.GetNumber(), "name", cr.Name, "namespace", cr.Namespace)
 		if _, err := githubClient.OpenIssue(ctx, existingIssue.GetNumber()); err != nil {
-			utils.HandleError(ctx, r.Client, cr, err)
+			message := fmt.Sprintf("GitHub API error: %s", err.Error())
+			utils.SetCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
 			return fmt.Errorf("failed to reopen issue: %w", err)
 		}
 	}

@@ -2,10 +2,8 @@ package utils
 
 import (
 	"context"
-	"fmt"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/github"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,19 +25,7 @@ const (
 	ReasonConflictedOwnership  = "ConflictedOwnership"
 )
 
-func HandleError(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, err error) {
-	if githubError, ok := err.(*github.GitHubError); ok {
-		message := fmt.Sprintf("GitHub API error: %s", githubError.Message)
-		SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonGitHubAPIError, message)
-		return
-	}
-
-	clearGithubStatus(githubIssue)
-	message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
-	SetCondition(ctx, k8sClient, githubIssue, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
-}
-
-func clearGithubStatus(githubIssue *githubv1alpha1.GithubIssue) {
+func ClearGithubStatus(githubIssue *githubv1alpha1.GithubIssue) {
 	githubIssue.Status.IssueID = nil
 	githubIssue.Status.URL = nil
 	githubIssue.Status.State = nil
