@@ -34,18 +34,16 @@ func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClien
 		return fmt.Errorf("issue is externally owned")
 	}
 
-	expectedNS := cr.Namespace
-	expectedCR := cr.Name
-	actualNS, actualCR := extractOwnerFromLabels(labels)
+	issueOwnerNS, issueOwnerCR := extractOwnerFromLabels(labels)
 
-	if (actualNS == "" && actualCR == "") || (actualNS == expectedNS && actualCR == expectedCR) {
+	if (issueOwnerNS == "" && issueOwnerCR == "") || (issueOwnerNS == cr.Namespace && issueOwnerCR == cr.Name) {
 		return nil
 	}
 
 	utils.UpdateCondition(ctx, r.Client, cr,
 		metav1.ConditionFalse,
 		utils.ReasonConflictedOwnership,
-		fmt.Sprintf("Issue owned by different CR: expected %s/%s, actual %s/%s", expectedNS, expectedCR, actualNS, actualCR))
+		fmt.Sprintf("Issue owned by different CR: expected %s/%s, actual %s/%s", cr.Namespace, cr.Name, issueOwnerNS, issueOwnerCR))
 	return fmt.Errorf("issue owned by different CR")
 }
 
