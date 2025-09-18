@@ -1,135 +1,73 @@
-# github-issue-operator
-// TODO(user): Add simple overview of use/purpose
+# GitHub Issue Operator
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+Kubernetes operator that manages GitHub issues as custom resources, enabling GitOps workflows for issue lifecycle management.
 
-## Getting Started
+## Features
+
+- **Declarative issue management** - Define GitHub issues as Kubernetes CRs
+- **Automatic synchronization** - Create, update, and close issues based on CR state  
+- **Ownership tracking** - Label-based ownership prevents conflicts
+- **Status reporting** - Real-time issue state in CR status
+
+## Quick Start
 
 ### Prerequisites
-- go version v1.24.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- Kubernetes v1.11.3+
+- GitHub token with repository permissions
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+### Installation
 
+1. **Deploy the operator:**
 ```sh
-make docker-build docker-push IMG=<some-registry>/github-issue-operator:tag
+make install deploy IMG=quay.io/sbahar/github-issue-operator:latest
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
-
-**Install the CRDs into the cluster:**
-
+2. **Create GitHub token secret:**
 ```sh
-make install
+kubectl create secret generic github-token --from-literal=token=<your-github-token>
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
-
-```sh
-make deploy IMG=<some-registry>/github-issue-operator:tag
+3. **Create an issue:**
+```yaml
+apiVersion: github.shahaf.com/v1alpha1
+kind: GithubIssue
+metadata:
+  name: my-issue
+spec:
+  repo: https://github.com/owner/repo
+  title: "Feature request from K8s"
+  description: "This issue was created by the operator"
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
-
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+### Example Usage
 
 ```sh
-kubectl apply -k config/samples/
+# Create issue
+kubectl apply -f config/samples/github_v1alpha1_githubissue.yaml
+
+# Check status
+kubectl get githubissue my-issue -o yaml
+
+# Update issue (modify spec.title or spec.description)
+kubectl edit githubissue my-issue
+
+# Delete issue (closes on GitHub)
+kubectl delete githubissue my-issue
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+## Development
 
 ```sh
-kubectl delete -k config/samples/
+# Run locally
+make run
+
+# Build and test
+make build test
+
+# Run E2E tests
+make test-e2e
 ```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/github-issue-operator:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/github-issue-operator/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v1-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
 ## License
 
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+Apache 2.0 - see [LICENSE](LICENSE) for details.
