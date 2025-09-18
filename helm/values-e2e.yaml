@@ -1,0 +1,10 @@
+# E2E test values for GitHub Issue Operator
+
+image:
+  repository: localhost/test-operator
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# GitHub token will be provided via --set github.token=$GITHUB_TOKEN
+github:
+  token: ""
