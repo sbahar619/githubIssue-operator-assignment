@@ -57,11 +57,6 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 			return nil, err
 		}
 
-		utils.UpdateCondition(ctx, r.Client, cr,
-			metav1.ConditionFalse,
-			utils.ReasonIssueFound,
-			fmt.Sprintf("Found existing issue #%d, checking if update is needed", *cr.Status.IssueID))
-
 		log.Info("Found existing GitHub issue", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 	}
 
@@ -140,11 +135,6 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 
 	if updateNeeded := r.isUpdateNeeded(cr, existingIssue); updateNeeded {
 		log.Info("Updating GitHub issue content", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
-
-		utils.UpdateCondition(ctx, r.Client, cr,
-			metav1.ConditionFalse,
-			utils.ReasonUpdateRequired,
-			fmt.Sprintf("Issue #%d content differs from desired state, update required", *cr.Status.IssueID))
 
 		description := ""
 		if cr.Spec.Description != nil {

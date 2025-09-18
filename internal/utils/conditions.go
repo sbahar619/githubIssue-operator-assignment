@@ -16,9 +16,6 @@ const (
 	ReasonIssueCreated      = "IssueCreated"
 	ReasonIssueSynchronized = "IssueSynchronized"
 
-	ReasonIssueFound     = "IssueFound"
-	ReasonUpdateRequired = "UpdateRequired"
-
 	ReasonAuthenticationFailed = "AuthenticationFailed"
 	ReasonGitHubAPIError       = "GitHubAPIError"
 	ReasonExternallyOwnedIssue = "ExternallyOwnedIssue"
