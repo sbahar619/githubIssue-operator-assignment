@@ -58,6 +58,8 @@ func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1
 		if err := r.closeGitHubIssue(ctx, githubClient, cr); err != nil {
 			return err
 		}
+
+		r.deleteOwnershipLabels(ctx, githubClient, cr)
 	}
 
 	controllerutil.RemoveFinalizer(cr, FinalizerName)

@@ -192,15 +192,8 @@ func (r *GithubIssueReconciler) isUpdateNeeded(cr *githubv1alpha1.GithubIssue, i
 	return specDesc != githubDesc
 }
 
-func (r *GithubIssueReconciler) closeGitHubIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
+func (r *GithubIssueReconciler) deleteOwnershipLabels(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) {
 	log := logf.FromContext(ctx)
-
-	if _, err := githubClient.CloseIssue(ctx, *cr.Status.IssueID); err != nil {
-		if githubError, ok := err.(*github.GitHubError); ok && githubError.StatusCode == github.HTTPStatusGone {
-			return nil
-		}
-		return err
-	}
 
 	nsLabel := fmt.Sprintf("ns-%s", cr.Namespace)
 	crLabel := fmt.Sprintf("cr-%s", cr.Name)
@@ -211,6 +204,19 @@ func (r *GithubIssueReconciler) closeGitHubIssue(ctx context.Context, githubClie
 
 	if err := githubClient.RemoveLabelFromIssue(ctx, *cr.Status.IssueID, crLabel); err != nil {
 		log.Error(err, "Failed to remove CR label from GitHub issue", "issueID", *cr.Status.IssueID, "label", crLabel, "name", cr.Name, "namespace", cr.Namespace)
+	}
+}
+
+func (r *GithubIssueReconciler) closeGitHubIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
+	log := logf.FromContext(ctx)
+
+	if _, err := githubClient.CloseIssue(ctx, *cr.Status.IssueID); err != nil {
+		if githubError, ok := err.(*github.GitHubError); ok && githubError.StatusCode == github.HTTPStatusGone {
+			return nil
+		}
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		return err
 	}
 
 	log.Info("GitHub issue closed", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
