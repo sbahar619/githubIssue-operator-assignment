@@ -54,8 +54,7 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 
 	if existingIssue != nil {
 		if err := r.updateStatusFromGitHub(cr, existingIssue); err != nil {
-			log.Error(err, "Failed to update status from GitHub issue", "name", cr.Name, "namespace", cr.Namespace)
-			return nil, fmt.Errorf("status update failed: %w", err)
+			return nil, err
 		}
 
 		utils.UpdateCondition(ctx, r.Client, cr,
