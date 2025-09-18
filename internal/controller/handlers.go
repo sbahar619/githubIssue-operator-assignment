@@ -19,14 +19,14 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 
 	if err := githubClient.ValidateAuthentication(ctx); err != nil {
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		utils.SetCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
 		return err
 	}
 
 	existingIssue, err := r.getExistingIssue(ctx, githubClient, cr)
 	if err != nil {
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		utils.SetCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
 		return err
 	}
 

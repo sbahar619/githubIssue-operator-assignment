@@ -33,7 +33,7 @@ func ClearGithubStatus(githubIssue *githubv1alpha1.GithubIssue) {
 	githubIssue.Status.HasPullRequest = nil
 }
 
-func SetCondition(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, status metav1.ConditionStatus, reason, message string) {
+func UpdateCondition(ctx context.Context, k8sClient client.Client, githubIssue *githubv1alpha1.GithubIssue, status metav1.ConditionStatus, reason, message string) {
 	log := logf.FromContext(ctx)
 
 	meta.SetStatusCondition(&githubIssue.Status.Conditions, metav1.Condition{
@@ -43,7 +43,7 @@ func SetCondition(ctx context.Context, k8sClient client.Client, githubIssue *git
 		Message: message,
 	})
 
-	if updateErr := k8sClient.Status().Update(ctx, githubIssue); updateErr != nil {
-		log.Error(updateErr, "Failed to update status", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
+	if err := k8sClient.Status().Update(ctx, githubIssue); err != nil {
+		log.Error(err, "Failed to update status", "name", githubIssue.Name, "namespace", githubIssue.Namespace)
 	}
 }

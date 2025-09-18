@@ -22,12 +22,12 @@ func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClien
 	labels, err := githubClient.ListIssueLabels(ctx, issue.GetNumber())
 	if err != nil {
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		utils.SetCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
 		return err
 	}
 
 	if !hasOperatorManagedLabel(labels) {
-		utils.SetCondition(ctx, r.Client, cr,
+		utils.UpdateCondition(ctx, r.Client, cr,
 			metav1.ConditionFalse,
 			utils.ReasonExternallyOwnedIssue,
 			"Issue exists but is not managed by operator")
@@ -42,7 +42,7 @@ func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClien
 		return nil
 	}
 
-	utils.SetCondition(ctx, r.Client, cr,
+	utils.UpdateCondition(ctx, r.Client, cr,
 		metav1.ConditionFalse,
 		utils.ReasonConflictedOwnership,
 		fmt.Sprintf("Issue owned by different CR: expected %s/%s, actual %s/%s", expectedNS, expectedCR, actualNS, actualCR))
