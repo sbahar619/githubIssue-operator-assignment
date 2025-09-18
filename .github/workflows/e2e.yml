@@ -1,0 +1,67 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [ main, develop, github-issue-operator ]
+  push:
+    branches: [ main, develop, github-issue-operator ]
+
+env:
+  GO_VERSION: '1.24'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Go
+      uses: ./.github/actions/setup-go
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: Create Kind cluster
+      uses: helm/kind-action@v1.8.0
+      with:
+        cluster_name: e2e-test
+        
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: 'latest'
+        
+    - name: Wait for cluster ready
+      run: kubectl wait --for=condition=Ready nodes --all --timeout=60s
+      
+    - name: Build and load operator image
+      run: |
+        make docker-build IMG=localhost/test-operator:latest
+        kind load docker-image localhost/test-operator:latest --name e2e-test
+        
+    - name: Deploy operator
+      run: |
+        helm install github-issue-operator ./helm \
+          -n github-issue-operator-system --create-namespace \
+          --values ./helm/values-e2e.yaml \
+          --set github.token="$GITHUB_TOKEN" \
+          --wait --timeout=120s
+      env:
+        GITHUB_TOKEN: ${{ secrets.E2E_GITHUB_TOKEN }}
+        
+    - name: Run E2E tests
+      run: make test-e2e
+        
+    - name: Wait for cleanup completion
+      run: |
+        echo "Waiting 1 minute for GitHub API cleanup to complete..."
+        sleep 60
+        
+    - name: Debug on failure
+      if: failure()
+      run: |
+        kubectl get pods -A
+        kubectl get events -A --sort-by='.lastTimestamp' | tail -20
+        kubectl logs -n github-issue-operator-system deployment/github-issue-operator-controller-manager --tail=50 || true

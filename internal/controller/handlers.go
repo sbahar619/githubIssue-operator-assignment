@@ -1,0 +1,125 @@
+package controller
+
+import (
+	"context"
+	"fmt"
+
+	gogithub "github.com/google/go-github/v57/github"
+	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
+	githubClient, err := r.newGitHubClient(cr)
+	if err != nil {
+		cr.Status = githubv1alpha1.GithubIssueStatus{
+			Conditions: []metav1.Condition{},
+		}
+		message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
+		return err
+	}
+
+	if err := githubClient.ValidateAuthentication(ctx); err != nil {
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
+		return err
+	}
+
+	existingIssue, err := r.getExistingIssue(ctx, githubClient, cr)
+	if err != nil {
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
+		return err
+	}
+
+	if existingIssue != nil {
+		if err := r.HandleOwnership(ctx, githubClient, existingIssue, cr); err != nil {
+			return nil
+		}
+
+		if err := r.handleUpdateIssue(ctx, githubClient, cr, existingIssue); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	log := logf.FromContext(ctx)
+	log.Info("Creating GitHub issue", "title", cr.Spec.Title, "name", cr.Name, "namespace", cr.Namespace)
+
+	createdIssue, err := r.createGitHubIssue(ctx, githubClient, cr)
+	if err != nil {
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError,
+			fmt.Sprintf("Failed to create GitHub issue: %s", err.Error()))
+		return err
+	}
+
+	if err := r.addOwnershipLabels(ctx, githubClient, createdIssue.GetNumber(), cr); err != nil {
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
+		return err
+	}
+
+	if err := r.updateStatusFromGitHub(cr, createdIssue); err != nil {
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError,
+			fmt.Sprintf("Failed to update status after issue creation: %s", err.Error()))
+		return err
+	}
+
+	UpdateCondition(ctx, r.Client, cr, metav1.ConditionTrue, ReasonIssueCreated,
+		fmt.Sprintf("GitHub issue #%d created successfully", *cr.Status.IssueID))
+
+	log.Info("GitHub issue created", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
+	return nil
+}
+
+func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
+	if cr.Status.IssueID != nil {
+		githubClient, err := r.newGitHubClient(cr)
+		if err != nil {
+			return err
+		}
+
+		if err := r.closeGitHubIssue(ctx, githubClient, cr); err != nil {
+			message := fmt.Sprintf("GitHub API error: %s", err.Error())
+			UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
+			return err
+		}
+
+		r.deleteOwnershipLabels(ctx, githubClient, cr)
+	}
+
+	controllerutil.RemoveFinalizer(cr, FinalizerName)
+	return r.Update(ctx, cr)
+}
+
+func (r *GithubIssueReconciler) updateStatusFromGitHub(cr *githubv1alpha1.GithubIssue, issue *gogithub.Issue) error {
+	issueNumber := issue.GetNumber()
+	if issueNumber == 0 {
+		return fmt.Errorf("GitHub issue has invalid number: %d", issueNumber)
+	}
+
+	url := issue.GetHTMLURL()
+	if url == "" {
+		return fmt.Errorf("GitHub issue has empty URL")
+	}
+
+	state := issue.GetState()
+	if state == "" {
+		return fmt.Errorf("GitHub issue has empty state")
+	}
+
+	cr.Status.IssueID = &issueNumber
+	cr.Status.URL = &url
+	cr.Status.State = &state
+
+	now := metav1.Now()
+	cr.Status.LastSyncTime = &now
+
+	hasPR := issue.PullRequestLinks != nil
+	cr.Status.HasPullRequest = &hasPR
+
+	return nil
+}

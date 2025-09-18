@@ -1,0 +1,10 @@
+# Default values for github-issue-operator
+
+image:
+  repository: controller
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# GitHub configuration
+github:
+  token: ""  # REQUIRED: Set via --set github.token=xxx or update the secret after installation

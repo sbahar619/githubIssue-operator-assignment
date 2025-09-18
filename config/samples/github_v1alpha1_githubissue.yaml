@@ -1,0 +1,11 @@
+apiVersion: github.shahaf.com/v1alpha1
+kind: GithubIssue
+metadata:
+  labels:
+    app.kubernetes.io/name: github-issue-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: githubissue-sample
+spec:
+  repo: https://github.com/sbahar619/githubIssue-operator-assignment
+  title: my-title
+  description: "my-description"
