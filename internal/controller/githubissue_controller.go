@@ -75,7 +75,7 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{RequeueAfter: time.Minute}, err
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
