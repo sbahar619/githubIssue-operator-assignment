@@ -113,7 +113,7 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient
 func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue, existingIssue *gogithub.Issue) error {
 	log := logf.FromContext(ctx)
 
-	if existingIssue.GetState() == "closed" {
+	if existingIssue.GetState() == github.IssueStateClosed {
 		log.Info("Reopening closed GitHub issue", "issueID", existingIssue.GetNumber(), "name", cr.Name, "namespace", cr.Namespace)
 		if _, err := githubClient.OpenIssue(ctx, existingIssue.GetNumber()); err != nil {
 			message := fmt.Sprintf("GitHub API error: %s", err.Error())
