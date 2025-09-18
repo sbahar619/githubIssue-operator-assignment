@@ -89,7 +89,8 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient
 	}
 
 	if err := githubClient.AddLabelsToIssue(ctx, createdIssue.GetNumber(), labels); err != nil {
-		log.Error(err, "Failed to add labels to GitHub issue", "issueID", createdIssue.GetNumber(), "labels", labels, "name", cr.Name, "namespace", cr.Namespace)
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
 		return err
 	}
 
@@ -118,7 +119,7 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 		if _, err := githubClient.OpenIssue(ctx, existingIssue.GetNumber()); err != nil {
 			message := fmt.Sprintf("GitHub API error: %s", err.Error())
 			utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
-			return fmt.Errorf("failed to reopen issue: %w", err)
+			return err
 		}
 	}
 
@@ -129,7 +130,8 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 	}
 
 	if err := githubClient.AddLabelsToIssue(ctx, existingIssue.GetNumber(), labels); err != nil {
-		log.Error(err, "Failed to add labels to GitHub issue", "issueID", existingIssue.GetNumber(), "labels", labels, "name", cr.Name, "namespace", cr.Namespace)
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
 		return err
 	}
 
