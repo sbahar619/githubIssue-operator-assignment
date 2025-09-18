@@ -12,20 +12,15 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func (r *GithubIssueReconciler) newGitHubClient(ctx context.Context, cr *githubv1alpha1.GithubIssue) (*github.Client, error) {
+func (r *GithubIssueReconciler) newGitHubClient(cr *githubv1alpha1.GithubIssue) (*github.Client, error) {
 	token, err := auth.GetGitHubToken()
 	if err != nil {
-		cr.Status = githubv1alpha1.GithubIssueStatus{
-			Conditions: []metav1.Condition{},
-		}
-		message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
-		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
 		return nil, err
 	}
 
 	githubClient, err := github.NewClient(token, cr.Spec.Repo)
 	if err != nil {
-		// CRD validates repo URL format, so this error indicates internal bug - no status update
+		// CRD validates repo URL format, so this error indicates internal bug
 		return nil, err
 	}
 

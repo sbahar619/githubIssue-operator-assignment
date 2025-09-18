@@ -11,8 +11,13 @@ import (
 )
 
 func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
-	githubClient, err := r.newGitHubClient(ctx, cr)
+	githubClient, err := r.newGitHubClient(cr)
 	if err != nil {
+		cr.Status = githubv1alpha1.GithubIssueStatus{
+			Conditions: []metav1.Condition{},
+		}
+		message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
 		return err
 	}
 
@@ -49,8 +54,9 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 
 func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
 	if cr.Status.IssueID != nil {
-		githubClient, err := r.newGitHubClient(ctx, cr)
+		githubClient, err := r.newGitHubClient(cr)
 		if err != nil {
+			// For deletion, we log auth errors but don't update status since resource is being deleted
 			return err
 		}
 
