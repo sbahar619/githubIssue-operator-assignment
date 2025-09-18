@@ -6,7 +6,6 @@ import (
 
 	gogithub "github.com/google/go-github/v57/github"
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -19,14 +18,14 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 
 	if err := githubClient.ValidateAuthentication(ctx); err != nil {
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 		return err
 	}
 
 	existingIssue, err := r.getExistingIssue(ctx, githubClient, cr)
 	if err != nil {
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 		return err
 	}
 

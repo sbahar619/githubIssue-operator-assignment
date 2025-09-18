@@ -8,7 +8,6 @@ import (
 	gogithub "github.com/google/go-github/v57/github"
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/github"
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -22,14 +21,14 @@ func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClien
 	labels, err := githubClient.ListIssueLabels(ctx, issue.GetNumber())
 	if err != nil {
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 		return err
 	}
 
 	if !hasOperatorManagedLabel(labels) {
-		utils.UpdateCondition(ctx, r.Client, cr,
+		UpdateCondition(ctx, r.Client, cr,
 			metav1.ConditionFalse,
-			utils.ReasonExternallyOwnedIssue,
+			ReasonExternallyOwnedIssue,
 			"Issue exists but is not managed by operator")
 		return fmt.Errorf("issue is externally owned")
 	}
@@ -40,9 +39,9 @@ func (r *GithubIssueReconciler) HandleOwnership(ctx context.Context, githubClien
 		return nil
 	}
 
-	utils.UpdateCondition(ctx, r.Client, cr,
+	UpdateCondition(ctx, r.Client, cr,
 		metav1.ConditionFalse,
-		utils.ReasonConflictedOwnership,
+		ReasonConflictedOwnership,
 		fmt.Sprintf("Issue owned by different CR: expected %s/%s, actual %s/%s", cr.Namespace, cr.Name, issueOwnerNS, issueOwnerCR))
 	return fmt.Errorf("issue owned by different CR")
 }

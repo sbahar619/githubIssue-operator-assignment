@@ -8,8 +8,8 @@ import (
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/sbahar619/githubIssue-operator-assignment/internal/controller"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/github"
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 )
 
 var _ = Describe("Issue Ownership Management", func() {
@@ -55,7 +55,7 @@ var _ = Describe("Issue Ownership Management", func() {
 
 		By("Verify external ownership is detected")
 		Eventually(func() bool {
-			return hasConditionWithReason(cr, utils.ReasonExternallyOwnedIssue)
+			return hasConditionWithReason(cr, controller.ReasonExternallyOwnedIssue)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
 
@@ -68,7 +68,7 @@ var _ = Describe("Issue Ownership Management", func() {
 
 		By("Verify first issue is created successfully")
 		Eventually(func() bool {
-			return hasConditionWithReason(firstResource, utils.ReasonIssueCreated)
+			return hasConditionWithReason(firstResource, controller.ReasonIssueCreated)
 		}, timeout, pollInterval).Should(BeTrue())
 
 		By("Create second GithubIssue resource with same title")
@@ -77,7 +77,7 @@ var _ = Describe("Issue Ownership Management", func() {
 
 		By("Verify ownership conflict is detected")
 		Eventually(func() bool {
-			return hasConditionWithReason(secondResource, utils.ReasonConflictedOwnership)
+			return hasConditionWithReason(secondResource, controller.ReasonConflictedOwnership)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
 
@@ -90,7 +90,7 @@ var _ = Describe("Issue Ownership Management", func() {
 
 		By("Verify first issue is created successfully")
 		Eventually(func() bool {
-			return hasConditionWithReason(firstCR, utils.ReasonIssueCreated)
+			return hasConditionWithReason(firstCR, controller.ReasonIssueCreated)
 		}, timeout, pollInterval).Should(BeTrue())
 
 		By("Delete the GithubIssue resource")
@@ -108,7 +108,7 @@ var _ = Describe("Issue Ownership Management", func() {
 
 		By("Verify successful creation without ownership conflicts")
 		Eventually(func() bool {
-			return hasConditionWithReason(secondCR, utils.ReasonIssueSynchronized)
+			return hasConditionWithReason(secondCR, controller.ReasonIssueSynchronized)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
 
@@ -122,7 +122,7 @@ var _ = Describe("Issue Ownership Management", func() {
 
 		By("Verify first issue is created successfully")
 		Eventually(func() bool {
-			return hasConditionWithReason(firstCR, utils.ReasonIssueCreated)
+			return hasConditionWithReason(firstCR, controller.ReasonIssueCreated)
 		}, timeout, pollInterval).Should(BeTrue())
 
 		By("Update the GithubIssue resource")
@@ -132,7 +132,7 @@ var _ = Describe("Issue Ownership Management", func() {
 
 		By("Verify issue is updated successfully")
 		Eventually(func() bool {
-			return hasConditionWithReason(firstCR, utils.ReasonIssueSynchronized)
+			return hasConditionWithReason(firstCR, controller.ReasonIssueSynchronized)
 		}, timeout, pollInterval).Should(BeTrue())
 
 		By("Delete the GithubIssue resource")
@@ -150,7 +150,7 @@ var _ = Describe("Issue Ownership Management", func() {
 
 		By("Verify successful creation without ownership conflicts")
 		Eventually(func() bool {
-			return hasConditionWithReason(secondCR, utils.ReasonIssueSynchronized)
+			return hasConditionWithReason(secondCR, controller.ReasonIssueSynchronized)
 		}, timeout, pollInterval).Should(BeTrue())
 	})
 })

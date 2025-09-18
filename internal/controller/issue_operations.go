@@ -8,7 +8,6 @@ import (
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/auth"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/github"
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -20,7 +19,7 @@ func (r *GithubIssueReconciler) newGitHubClient(ctx context.Context, cr *githubv
 			Conditions: []metav1.Condition{},
 		}
 		message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
-		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonAuthenticationFailed, message)
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
 		return nil, err
 	}
 
@@ -75,9 +74,9 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient
 
 	createdIssue, err := githubClient.CreateIssue(ctx, cr.Spec.Title, description)
 	if err != nil {
-		utils.UpdateCondition(ctx, r.Client, cr,
+		UpdateCondition(ctx, r.Client, cr,
 			metav1.ConditionFalse,
-			utils.ReasonGitHubAPIError,
+			ReasonGitHubAPIError,
 			fmt.Sprintf("Failed to create GitHub issue: %s", err.Error()))
 		return err
 	}
@@ -90,21 +89,21 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient
 
 	if err := githubClient.AddLabelsToIssue(ctx, createdIssue.GetNumber(), labels); err != nil {
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 		return err
 	}
 
 	if err := r.updateStatusFromGitHub(cr, createdIssue); err != nil {
-		utils.UpdateCondition(ctx, r.Client, cr,
+		UpdateCondition(ctx, r.Client, cr,
 			metav1.ConditionFalse,
-			utils.ReasonGitHubAPIError,
+			ReasonGitHubAPIError,
 			fmt.Sprintf("Failed to update status after issue creation: %s", err.Error()))
 		return err
 	}
 
-	utils.UpdateCondition(ctx, r.Client, cr,
+	UpdateCondition(ctx, r.Client, cr,
 		metav1.ConditionTrue,
-		utils.ReasonIssueCreated,
+		ReasonIssueCreated,
 		fmt.Sprintf("GitHub issue #%d created successfully", *cr.Status.IssueID))
 
 	log.Info("GitHub issue created", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
@@ -118,7 +117,7 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 		log.Info("Reopening closed GitHub issue", "issueID", existingIssue.GetNumber(), "name", cr.Name, "namespace", cr.Namespace)
 		if _, err := githubClient.OpenIssue(ctx, existingIssue.GetNumber()); err != nil {
 			message := fmt.Sprintf("GitHub API error: %s", err.Error())
-			utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+			UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 			return err
 		}
 	}
@@ -131,7 +130,7 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 
 	if err := githubClient.AddLabelsToIssue(ctx, existingIssue.GetNumber(), labels); err != nil {
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 		return err
 	}
 
@@ -144,33 +143,33 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 		}
 		updatedIssue, err := githubClient.UpdateIssue(ctx, *existingIssue.Number, cr.Spec.Title, description)
 		if err != nil {
-			utils.UpdateCondition(ctx, r.Client, cr,
+			UpdateCondition(ctx, r.Client, cr,
 				metav1.ConditionFalse,
-				utils.ReasonGitHubAPIError,
+				ReasonGitHubAPIError,
 				fmt.Sprintf("Failed to update issue #%d: %s", *cr.Status.IssueID, err.Error()))
 			return err
 		}
 
 		if err := r.updateStatusFromGitHub(cr, updatedIssue); err != nil {
-			utils.UpdateCondition(ctx, r.Client, cr,
+			UpdateCondition(ctx, r.Client, cr,
 				metav1.ConditionFalse,
-				utils.ReasonGitHubAPIError,
+				ReasonGitHubAPIError,
 				fmt.Sprintf("Failed to update status after issue update: %s", err.Error()))
 			return err
 		}
 
-		utils.UpdateCondition(ctx, r.Client, cr,
+		UpdateCondition(ctx, r.Client, cr,
 			metav1.ConditionTrue,
-			utils.ReasonIssueSynchronized,
+			ReasonIssueSynchronized,
 			fmt.Sprintf("Issue #%d updated and synchronized successfully", *cr.Status.IssueID))
 
 		log.Info("GitHub issue updated", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 		return nil
 	}
 
-	utils.UpdateCondition(ctx, r.Client, cr,
+	UpdateCondition(ctx, r.Client, cr,
 		metav1.ConditionTrue,
-		utils.ReasonIssueSynchronized,
+		ReasonIssueSynchronized,
 		fmt.Sprintf("Issue #%d content matches desired state", *cr.Status.IssueID))
 
 	return nil
@@ -215,7 +214,7 @@ func (r *GithubIssueReconciler) closeGitHubIssue(ctx context.Context, githubClie
 			return nil
 		}
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonGitHubAPIError, message)
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 		return err
 	}
 

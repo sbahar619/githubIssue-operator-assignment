@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
+	"github.com/sbahar619/githubIssue-operator-assignment/internal/controller"
 )
 
 var _ = Describe("GitHub Token Authentication", func() {
@@ -69,7 +69,7 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Expecting authentication failure to be reported")
 			Eventually(func() bool {
-				return hasConditionWithReason(cr, utils.ReasonAuthenticationFailed)
+				return hasConditionWithReason(cr, controller.ReasonAuthenticationFailed)
 			}, timeout, pollInterval).Should(BeTrue())
 		})
 
@@ -89,7 +89,7 @@ var _ = Describe("GitHub Token Authentication", func() {
 
 			By("Expecting GitHub API error to be reported")
 			Eventually(func() bool {
-				return hasConditionWithReason(cr, utils.ReasonGitHubAPIError)
+				return hasConditionWithReason(cr, controller.ReasonGitHubAPIError)
 			}, timeout, pollInterval).Should(BeTrue())
 		})
 	})

@@ -9,8 +9,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
+	"github.com/sbahar619/githubIssue-operator-assignment/internal/controller"
 	"github.com/sbahar619/githubIssue-operator-assignment/internal/github"
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/utils"
 )
 
 var _ = Describe("GitHub Issue Lifecycle (Create, Update, Delete)", Ordered, func() {
@@ -40,7 +40,7 @@ var _ = Describe("GitHub Issue Lifecycle (Create, Update, Delete)", Ordered, fun
 	It("Should create GitHub issue", func() {
 		By("Waiting for issue creation")
 		Eventually(func() bool {
-			return hasConditionWithReason(githubIssue, utils.ReasonIssueCreated)
+			return hasConditionWithReason(githubIssue, controller.ReasonIssueCreated)
 		}, timeout, pollInterval).Should(BeTrue(), "Should create new issue")
 	})
 
@@ -59,7 +59,7 @@ var _ = Describe("GitHub Issue Lifecycle (Create, Update, Delete)", Ordered, fun
 			if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(githubIssue), githubIssue); err != nil {
 				return false
 			}
-			if !hasConditionWithReason(githubIssue, utils.ReasonIssueSynchronized) {
+			if !hasConditionWithReason(githubIssue, controller.ReasonIssueSynchronized) {
 				return false
 			}
 			return githubIssue.Status.LastSyncTime != nil &&
