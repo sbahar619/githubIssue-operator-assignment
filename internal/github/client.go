@@ -14,6 +14,8 @@ import (
 const (
 	IssueStateOpen   = "open"
 	IssueStateClosed = "closed"
+
+	HTTPStatusGone = 410
 )
 
 type Repository struct {

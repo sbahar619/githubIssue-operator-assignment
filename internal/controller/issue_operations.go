@@ -196,10 +196,9 @@ func (r *GithubIssueReconciler) closeGitHubIssue(ctx context.Context, githubClie
 	log := logf.FromContext(ctx)
 
 	if _, err := githubClient.CloseIssue(ctx, *cr.Status.IssueID); err != nil {
-		if githubError, ok := err.(*github.GitHubError); ok && githubError.StatusCode == 410 {
+		if githubError, ok := err.(*github.GitHubError); ok && githubError.StatusCode == github.HTTPStatusGone {
 			return nil
 		}
-		log.Error(err, "Failed to close GitHub issue", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 		return err
 	}
 
