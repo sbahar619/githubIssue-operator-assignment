@@ -16,7 +16,9 @@ import (
 func (r *GithubIssueReconciler) newGitHubClient(ctx context.Context, cr *githubv1alpha1.GithubIssue) (*github.Client, error) {
 	token, err := auth.GetGitHubToken()
 	if err != nil {
-		utils.ClearGithubStatus(cr)
+		cr.Status = githubv1alpha1.GithubIssueStatus{
+			Conditions: []metav1.Condition{},
+		}
 		message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
 		utils.UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, utils.ReasonAuthenticationFailed, message)
 		return nil, err
