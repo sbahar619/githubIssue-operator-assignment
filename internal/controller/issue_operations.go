@@ -208,8 +208,6 @@ func (r *GithubIssueReconciler) closeGitHubIssue(ctx context.Context, githubClie
 		if githubError, ok := err.(*github.GitHubError); ok && githubError.StatusCode == github.HTTPStatusGone {
 			return nil
 		}
-		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 		return err
 	}
 

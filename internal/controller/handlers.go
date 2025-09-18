@@ -56,11 +56,12 @@ func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1
 	if cr.Status.IssueID != nil {
 		githubClient, err := r.newGitHubClient(cr)
 		if err != nil {
-			// For deletion, we log auth errors but don't update status since resource is being deleted
 			return err
 		}
 
 		if err := r.closeGitHubIssue(ctx, githubClient, cr); err != nil {
+			message := fmt.Sprintf("GitHub API error: %s", err.Error())
+			UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 			return err
 		}
 
