@@ -8,6 +8,7 @@ import (
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
@@ -45,10 +46,32 @@ func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *gi
 		return nil
 	}
 
-	if err := r.createNewIssue(ctx, githubClient, cr); err != nil {
+	log := logf.FromContext(ctx)
+	log.Info("Creating GitHub issue", "title", cr.Spec.Title, "name", cr.Name, "namespace", cr.Namespace)
+
+	createdIssue, err := r.createGitHubIssue(ctx, githubClient, cr)
+	if err != nil {
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError,
+			fmt.Sprintf("Failed to create GitHub issue: %s", err.Error()))
 		return err
 	}
 
+	if err := r.addOwnershipLabels(ctx, githubClient, createdIssue.GetNumber(), cr); err != nil {
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
+		return err
+	}
+
+	if err := r.updateStatusFromGitHub(cr, createdIssue); err != nil {
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError,
+			fmt.Sprintf("Failed to update status after issue creation: %s", err.Error()))
+		return err
+	}
+
+	UpdateCondition(ctx, r.Client, cr, metav1.ConditionTrue, ReasonIssueCreated,
+		fmt.Sprintf("GitHub issue #%d created successfully", *cr.Status.IssueID))
+
+	log.Info("GitHub issue created", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
 	return nil
 }
 

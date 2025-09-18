@@ -55,6 +55,12 @@ func hasOperatorManagedLabel(labels []string) bool {
 	return false
 }
 
+func GetOwnershipLabels(cr *githubv1alpha1.GithubIssue) (string, string) {
+	nsLabel := fmt.Sprintf("ns-%s", cr.Namespace)
+	crLabel := fmt.Sprintf("cr-%s", cr.Name)
+	return nsLabel, crLabel
+}
+
 func extractOwnerFromLabels(labels []string) (namespace, crName string) {
 	for _, label := range labels {
 		if strings.HasPrefix(label, "ns-") {

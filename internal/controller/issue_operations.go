@@ -57,52 +57,22 @@ func (r *GithubIssueReconciler) getIssueByTitle(ctx context.Context, githubClien
 	return existingIssue, nil
 }
 
-func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
-	log := logf.FromContext(ctx)
-
-	log.Info("Creating GitHub issue", "title", cr.Spec.Title, "name", cr.Name, "namespace", cr.Namespace)
-
+func (r *GithubIssueReconciler) createGitHubIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) (*gogithub.Issue, error) {
 	description := ""
 	if cr.Spec.Description != nil {
 		description = *cr.Spec.Description
 	}
+	return githubClient.CreateIssue(ctx, cr.Spec.Title, description)
+}
 
-	createdIssue, err := githubClient.CreateIssue(ctx, cr.Spec.Title, description)
-	if err != nil {
-		UpdateCondition(ctx, r.Client, cr,
-			metav1.ConditionFalse,
-			ReasonGitHubAPIError,
-			fmt.Sprintf("Failed to create GitHub issue: %s", err.Error()))
-		return err
-	}
-
+func (r *GithubIssueReconciler) addOwnershipLabels(ctx context.Context, githubClient *github.Client, issueNumber int, cr *githubv1alpha1.GithubIssue) error {
+	nsLabel, crLabel := GetOwnershipLabels(cr)
 	labels := []string{
 		OperatorManagedLabel,
-		fmt.Sprintf("ns-%s", cr.Namespace),
-		fmt.Sprintf("cr-%s", cr.Name),
+		nsLabel,
+		crLabel,
 	}
-
-	if err := githubClient.AddLabelsToIssue(ctx, createdIssue.GetNumber(), labels); err != nil {
-		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
-		return err
-	}
-
-	if err := r.updateStatusFromGitHub(cr, createdIssue); err != nil {
-		UpdateCondition(ctx, r.Client, cr,
-			metav1.ConditionFalse,
-			ReasonGitHubAPIError,
-			fmt.Sprintf("Failed to update status after issue creation: %s", err.Error()))
-		return err
-	}
-
-	UpdateCondition(ctx, r.Client, cr,
-		metav1.ConditionTrue,
-		ReasonIssueCreated,
-		fmt.Sprintf("GitHub issue #%d created successfully", *cr.Status.IssueID))
-
-	log.Info("GitHub issue created", "issueID", *cr.Status.IssueID, "name", cr.Name, "namespace", cr.Namespace)
-	return nil
+	return githubClient.AddLabelsToIssue(ctx, issueNumber, labels)
 }
 
 func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue, existingIssue *gogithub.Issue) error {
@@ -117,13 +87,7 @@ func (r *GithubIssueReconciler) handleUpdateIssue(ctx context.Context, githubCli
 		}
 	}
 
-	labels := []string{
-		OperatorManagedLabel,
-		fmt.Sprintf("ns-%s", cr.Namespace),
-		fmt.Sprintf("cr-%s", cr.Name),
-	}
-
-	if err := githubClient.AddLabelsToIssue(ctx, existingIssue.GetNumber(), labels); err != nil {
+	if err := r.addOwnershipLabels(ctx, githubClient, existingIssue.GetNumber(), cr); err != nil {
 		message := fmt.Sprintf("GitHub API error: %s", err.Error())
 		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 		return err
@@ -189,8 +153,7 @@ func (r *GithubIssueReconciler) isUpdateNeeded(cr *githubv1alpha1.GithubIssue, i
 func (r *GithubIssueReconciler) deleteOwnershipLabels(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) {
 	log := logf.FromContext(ctx)
 
-	nsLabel := fmt.Sprintf("ns-%s", cr.Namespace)
-	crLabel := fmt.Sprintf("cr-%s", cr.Name)
+	nsLabel, crLabel := GetOwnershipLabels(cr)
 
 	if err := githubClient.RemoveLabelFromIssue(ctx, *cr.Status.IssueID, nsLabel); err != nil {
 		log.Error(err, "Failed to remove namespace label from GitHub issue", "issueID", *cr.Status.IssueID, "label", nsLabel, "name", cr.Name, "namespace", cr.Namespace)
