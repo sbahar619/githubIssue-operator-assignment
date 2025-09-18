@@ -71,7 +71,7 @@ func ProcessComplexLogic(...) {
 func FormatErrorMessage(err error) string          // No side effects
 func ValidateInput(input string) error             // No side effects
 
-// Bad: Mixed responsibilities
+// Bad: Mixed responsibilities  
 func HandleErrorAndRetry(err error) ctrl.Result    // Side effects + timing
 ```
 
@@ -84,15 +84,15 @@ func HandleErrorAndRetry(err error) ctrl.Result    // Side effects + timing
 
 ```go
 // 1. Public API (External callers)
-func HandleAuthenticationError(...)
-func HandleGitHubAPIError(...)
+func HandleAuthError(...)
+func HandleAPIError(...)
 
-// 2. Private helpers (Internal callees)
+// 2. Private helpers (Internal callees)  
 func handleRetryableError(...)
 func handleNonRetryableError(...)
 
 // 3. Core utilities (Fundamental callees)
-func SetCondition(...)
+func updateStatus(...)
 ```
 
 ### Benefits

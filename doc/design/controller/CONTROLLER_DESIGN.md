@@ -20,14 +20,30 @@ Design reconciliation logic for GitHub issue lifecycle management following Kube
 - **Ownership verification** - Check labels before taking any action
 
 ### Error Classification
-- **Authentication** - Token missing/invalid, requeue with delay
-- **Retryable** - GitHub API 5xx/429, exponential backoff
-- **Non-retryable** - Permission denied, invalid repo, set error condition
-- **Ownership** - Human-owned or conflicted issues, set error condition
+- **User-actionable errors** - Update status for user visibility and action
+- **Infrastructure errors** - Log only, let controller retry handle
+- **Authentication** - Token missing/invalid, user can fix
+- **Ownership conflicts** - User needs to resolve external ownership
+- **GitHub API errors** - Could be user permissions or service issues
 
 ### Status Reporting
-- **Conditions** - Standard Kubernetes pattern (Ready, Synced, Conflict)
+- **Final states only** - No intermediate processing states
+- **User-actionable errors only** - Status updates when user can take action  
+- **Infrastructure errors** - Logged only, controller retries automatically
+- **Conditions** - Standard Kubernetes pattern (Ready with specific reasons)
 - **GitHub metadata** - IssueID, URL, State, HasPullRequest, LastSyncTime
+
+### Error Handling Pattern
+**Status Updates (user-visible):**
+- Authentication failures (fix token/secret)
+- Ownership conflicts (resolve external ownership)  
+- GitHub API errors (check permissions/repo access)
+
+**Log Only (controller-handled):**
+- Network timeouts and retryable errors
+- Internal status update failures
+- Cleanup operation failures during deletion
+- Transient infrastructure issues
 - **Error details** - Descriptive messages for troubleshooting
 
 ### Finalizer Strategy
