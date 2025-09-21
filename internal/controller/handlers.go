@@ -6,19 +6,25 @@ import (
 
 	gogithub "github.com/google/go-github/v57/github"
 	githubv1alpha1 "github.com/sbahar619/githubIssue-operator-assignment/api/v1alpha1"
-	"github.com/sbahar619/githubIssue-operator-assignment/internal/github"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func (r *GithubIssueReconciler) handleCreateOrUpdate(ctx context.Context, cr *githubv1alpha1.GithubIssue) error {
-	githubClient, err := r.createGitHubClient(ctx, cr)
+	githubClient, err := r.newGitHubClient(cr)
 	if err != nil {
+		cr.Status = githubv1alpha1.GithubIssueStatus{
+			Conditions: []metav1.Condition{},
+		}
+		message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
 		return err
 	}
 
-	if err := r.validateGitHubClient(ctx, githubClient, cr); err != nil {
+	if err := githubClient.ValidateAuthentication(ctx); err != nil {
+		message := fmt.Sprintf("GitHub API error: %s", err.Error())
+		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
 		return err
 	}
 
@@ -87,28 +93,6 @@ func (r *GithubIssueReconciler) handleDeletion(ctx context.Context, cr *githubv1
 
 	controllerutil.RemoveFinalizer(cr, FinalizerName)
 	return r.Update(ctx, cr)
-}
-
-func (r *GithubIssueReconciler) createGitHubClient(ctx context.Context, cr *githubv1alpha1.GithubIssue) (*github.Client, error) {
-	githubClient, err := r.newGitHubClient(cr)
-	if err != nil {
-		cr.Status = githubv1alpha1.GithubIssueStatus{
-			Conditions: []metav1.Condition{},
-		}
-		message := fmt.Sprintf("GitHub authentication error: %s", err.Error())
-		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonAuthenticationFailed, message)
-		return nil, err
-	}
-	return githubClient, nil
-}
-
-func (r *GithubIssueReconciler) validateGitHubClient(ctx context.Context, githubClient *github.Client, cr *githubv1alpha1.GithubIssue) error {
-	if err := githubClient.ValidateAuthentication(ctx); err != nil {
-		message := fmt.Sprintf("GitHub API error: %s", err.Error())
-		UpdateCondition(ctx, r.Client, cr, metav1.ConditionFalse, ReasonGitHubAPIError, message)
-		return err
-	}
-	return nil
 }
 
 func (r *GithubIssueReconciler) updateStatusFromGitHub(cr *githubv1alpha1.GithubIssue, issue *gogithub.Issue) error {
